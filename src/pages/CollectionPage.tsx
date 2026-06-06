@@ -1,7 +1,24 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { CONDITION_ORDER, CONDITION_LABELS } from '../types';
 import type { CollectionEntry, Condition } from '../types';
+import { exportCollection } from '../utils/exportCsv';
+import './CollectionPage.css';
+
+type Sort =
+  | 'date_new' | 'date_old'
+  | 'name_asc' | 'name_desc'
+  | 'set_asc'
+  | 'cond_best';
+
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: 'date_new',  label: 'Newest first' },
+  { value: 'date_old',  label: 'Oldest first' },
+  { value: 'name_asc',  label: 'Name (A→Z)' },
+  { value: 'name_desc', label: 'Name (Z→A)' },
+  { value: 'set_asc',   label: 'Set name' },
+  { value: 'cond_best', label: 'Condition (best first)' },
+];
 
 function totalCopies(entry: CollectionEntry): number {
   return entry.copies.reduce((s, c) => s + c.quantity, 0);
@@ -17,33 +34,70 @@ function bestCondition(entry: CollectionEntry): Condition {
   );
 }
 
-type RemoveDialog = {
-  entry: CollectionEntry;
-  condition: Condition;
-  amount: number;
-} | null;
+type RemoveDialog = { entry: CollectionEntry; condition: Condition; amount: number } | null;
 
 export function CollectionPage() {
   const { state, dispatch } = useCollection();
-  const [search, setSearch] = useState('');
-  const [removing, setRemoving] = useState<RemoveDialog>(null);
-  // Tracks which condition tab is active per entry in the table
+
+  const [search,           setSearch]           = useState('');
+  const [sort,             setSort]             = useState<Sort>('date_new');
+  const [filterCondition,  setFilterCondition]  = useState<Condition | ''>('');
+  const [filterRarity,     setFilterRarity]     = useState('');
+  const [removing,         setRemoving]         = useState<RemoveDialog>(null);
   const [selectedConditions, setSelectedConditions] = useState<Record<string, Condition>>({});
 
   const getSelectedCondition = (entry: CollectionEntry): Condition =>
     selectedConditions[entry.id] ?? bestCondition(entry);
 
-  const filtered = state.collection.filter((e) =>
-    e.cardName.toLowerCase().includes(search.toLowerCase()) ||
-    e.setName.toLowerCase().includes(search.toLowerCase()),
+  // Unique rarities present in the collection
+  const rarities = useMemo(
+    () => [...new Set(state.collection.map((e) => e.rarity))].sort(),
+    [state.collection],
   );
 
-  const totalCards = state.collection.length;
+  // Conditions present in the collection
+  const conditionsPresent = useMemo(
+    () => CONDITION_ORDER.filter((c) => state.collection.some((e) => e.copies.some((x) => x.condition === c))),
+    [state.collection],
+  );
+
+  const entries = useMemo(() => {
+    const q = search.toLowerCase();
+    let list = state.collection.filter(
+      (e) =>
+        e.cardName.toLowerCase().includes(q) ||
+        e.setName.toLowerCase().includes(q) ||
+        e.setCode.toLowerCase().includes(q),
+    );
+
+    if (filterCondition) {
+      list = list.filter((e) => e.copies.some((c) => c.condition === filterCondition));
+    }
+    if (filterRarity) {
+      list = list.filter((e) => e.rarity === filterRarity);
+    }
+
+    return [...list].sort((a, b) => {
+      switch (sort) {
+        case 'name_asc':  return a.cardName.localeCompare(b.cardName);
+        case 'name_desc': return b.cardName.localeCompare(a.cardName);
+        case 'date_new':  return b.dateAdded.localeCompare(a.dateAdded);
+        case 'date_old':  return a.dateAdded.localeCompare(b.dateAdded);
+        case 'set_asc':   return a.setName.localeCompare(b.setName);
+        case 'cond_best': {
+          const ai = CONDITION_ORDER.indexOf(bestCondition(a));
+          const bi = CONDITION_ORDER.indexOf(bestCondition(b));
+          return ai - bi;
+        }
+        default: return 0;
+      }
+    });
+  }, [state.collection, search, sort, filterCondition, filterRarity]);
+
   const totalCopiesCount = state.collection.reduce((s, e) => s + totalCopies(e), 0);
 
   const handleConditionChange = (entry: CollectionEntry, cond: Condition) => {
     setSelectedConditions((prev) => ({ ...prev, [entry.id]: cond }));
-    // Keep the remove dialog in sync if it's open for this entry
     if (removing?.entry.id === entry.id) {
       const newMax = entry.copies.find((c) => c.condition === cond)?.quantity ?? 1;
       setRemoving((r) => r && { ...r, condition: cond, amount: Math.min(r.amount, newMax) });
@@ -54,7 +108,6 @@ export function CollectionPage() {
     const cond = getSelectedCondition(entry);
     const qty = entry.copies.find((c) => c.condition === cond)?.quantity ?? 0;
     if (qty <= 1) {
-      // Single copy of this condition — remove directly, no dialog
       dispatch({ type: 'REMOVE_COLLECTION_COPIES', id: entry.id, amount: 1, condition: cond });
     } else {
       setRemoving({ entry, condition: cond, amount: 1 });
@@ -78,107 +131,139 @@ export function CollectionPage() {
         My Collection
       </h1>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Toolbar */}
+      <div className="collection-toolbar">
         <input
-          style={{ flex: 1, minWidth: '180px' }}
+          className="collection-toolbar__search"
           type="search"
-          placeholder="Filter by card or set name…"
+          placeholder="Search cards…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          {totalCards} unique · {totalCopiesCount} copies
+        <div className="collection-toolbar__controls">
+          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={filterCondition}
+            onChange={(e) => setFilterCondition(e.target.value as Condition | '')}
+          >
+            <option value="">All conditions</option>
+            {conditionsPresent.map((c) => (
+              <option key={c} value={c}>{CONDITION_LABELS[c]} ({c})</option>
+            ))}
+          </select>
+
+          <select
+            value={filterRarity}
+            onChange={(e) => setFilterRarity(e.target.value)}
+          >
+            <option value="">All rarities</option>
+            {rarities.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        <span className="collection-toolbar__count">
+          {entries.length} of {state.collection.length} · {totalCopiesCount} copies
         </span>
+        {state.collection.length > 0 && (
+          <button
+            className="btn btn-ghost collection-toolbar__export"
+            onClick={() => exportCollection(state.collection)}
+          >
+            Export CSV
+          </button>
+        )}
       </div>
 
-      {filtered.length === 0 && (
+      {/* Empty state */}
+      {state.collection.length === 0 && (
         <div className="empty-state">
           <strong>No cards yet</strong>
           <p>Search for cards and add them to your collection.</p>
         </div>
       )}
 
-      {filtered.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Card</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Set</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Rarity</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Condition</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Qty</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 500 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((entry) => {
-                const selectedCond = getSelectedCondition(entry);
-                const selectedCopies = entry.copies.find((c) => c.condition === selectedCond);
-                const multi = entry.copies.length > 1;
-
-                return (
-                  <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        {entry.cardImageUrl && (
-                          <img
-                            src={entry.cardImageUrl}
-                            alt={entry.cardName}
-                            style={{ width: 50, height: 73, objectFit: 'cover', borderRadius: 4, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
-                          />
-                        )}
-                        <span style={{ fontWeight: 600 }}>{entry.cardName}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.5rem', color: 'var(--text-muted)' }}>
-                      {entry.setName}<br />
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{entry.setCode}</span>
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>{entry.rarity}</td>
-                    <td style={{ padding: '0.5rem' }}>
-                      {multi ? (
-                        <select
-                          value={selectedCond}
-                          onChange={(e) => handleConditionChange(entry, e.target.value as Condition)}
-                          style={{ fontSize: '0.8rem' }}
-                        >
-                          {entry.copies.map((c) => (
-                            <option key={c.condition} value={c.condition}>
-                              {c.quantity}× {CONDITION_LABELS[c.condition]} ({c.condition})
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span>{CONDITION_LABELS[selectedCond]} ({selectedCond})</span>
-                      )}
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>
-                      {/* Show count for the active condition */}
-                      {selectedCopies?.quantity ?? totalCopies(entry)}
-                      {multi && (
-                        <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', marginLeft: 4 }}>
-                          / {totalCopies(entry)} total
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                      <button
-                        className="btn btn-danger"
-                        onClick={() => handleRemoveClick(entry)}
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {state.collection.length > 0 && entries.length === 0 && (
+        <div className="empty-state">
+          <strong>No cards match your filters</strong>
+          <p>Try adjusting your search or filters.</p>
         </div>
       )}
 
-      {/* Remove dialog — condition-specific */}
+      {/* Entry list */}
+      {entries.length > 0 && (
+        <div className="collection-list">
+          {entries.map((entry) => {
+            const selectedCond = getSelectedCondition(entry);
+            const selectedCopies = entry.copies.find((c) => c.condition === selectedCond);
+            const multi = entry.copies.length > 1;
+
+            return (
+              <div key={entry.id} className="collection-row">
+                {entry.cardImageUrl && (
+                  <img
+                    className="collection-row__thumb"
+                    src={entry.cardImageUrl}
+                    alt={entry.cardName}
+                  />
+                )}
+
+                <div className="collection-row__info">
+                  <span className="collection-row__name">{entry.cardName}</span>
+                  <span className="collection-row__set">
+                    {entry.setName}
+                    {' · '}
+                    <span style={{ fontFamily: 'monospace' }}>{entry.setCode}</span>
+                  </span>
+                  <span className="collection-row__rarity">{entry.rarity}</span>
+                </div>
+
+                <div className="collection-row__meta">
+                  {multi ? (
+                    <select
+                      className="collection-row__condition-select"
+                      value={selectedCond}
+                      onChange={(e) => handleConditionChange(entry, e.target.value as Condition)}
+                    >
+                      {entry.copies.map((c) => (
+                        <option key={c.condition} value={c.condition}>
+                          {c.quantity}× {CONDITION_LABELS[c.condition]} ({c.condition})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="collection-row__condition-text">
+                      {CONDITION_LABELS[selectedCond]} ({selectedCond})
+                    </span>
+                  )}
+
+                  <span className="collection-row__qty">
+                    {selectedCopies?.quantity ?? totalCopies(entry)}
+                    {multi && (
+                      <span className="collection-row__qty-sub"> / {totalCopies(entry)}</span>
+                    )}
+                  </span>
+
+                  <button
+                    className="btn btn-danger"
+                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+                    onClick={() => handleRemoveClick(entry)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Remove dialog */}
       {removing && (() => {
         const copiesOfCond = removing.entry.copies.find((c) => c.condition === removing.condition);
         const maxQty = copiesOfCond?.quantity ?? 1;
@@ -190,7 +275,6 @@ export function CollectionPage() {
                 {removing.entry.cardName} — {removing.entry.setCode}
               </p>
 
-              {/* Condition selector — only shown if entry has multiple conditions */}
               {removing.entry.copies.length > 1 && (
                 <div style={{ marginBottom: '0.75rem' }}>
                   <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>

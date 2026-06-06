@@ -194,7 +194,7 @@ function reducer(state: AppState, action: Action): AppState {
         ? state.toGet.filter((e) => e.id !== action.toGetId)
         : state.toGet;
 
-      return { collection: nextCollection, toGet: nextToGet };
+      return { ...state, collection: nextCollection, toGet: nextToGet };
     }
 
     case 'CREATE_BINDER':

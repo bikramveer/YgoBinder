@@ -1,108 +1,214 @@
-import { useCollection } from '../context/CollectionContext';
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import type { CollectionEntry } from '../types';
-
-function totalCopies(entry: CollectionEntry): number {
-  return entry.copies.reduce((s, c) => s + c.quantity, 0);
-}
+import { useCollection } from '../context/CollectionContext';
+import './DashboardPage.css';
 
 export function DashboardPage() {
-  const { state } = useCollection();
+  const { state, stillNeeded } = useCollection();
 
   const totalUnique = state.collection.length;
-  const totalCopiesCount = state.collection.reduce((s, e) => s + totalCopies(e), 0);
-  const toGetCount = state.toGet.length;
 
-  const recent = [...state.collection]
-    .sort((a, b) => (a.dateAdded > b.dateAdded ? -1 : 1))
-    .slice(0, 8);
+  const totalCopiesCount = useMemo(
+    () => state.collection.reduce((s, e) => s + e.copies.reduce((ss, c) => ss + c.quantity, 0), 0),
+    [state.collection],
+  );
+
+  // Per-binder slot stats
+  const binderStats = useMemo(
+    () =>
+      state.binders.map((binder) => {
+        const totalSlots = binder.pages.reduce((s, p) => s + p.slots.length, 0);
+        const filledSlots = binder.pages.reduce(
+          (s, p) => s + p.slots.filter(Boolean).length,
+          0,
+        );
+        const emptySlots = totalSlots - filledSlots;
+        let slotLabel: string;
+        if (totalSlots === 0) {
+          slotLabel = 'No pages';
+        } else if (filledSlots === totalSlots) {
+          slotLabel = 'Full';
+        } else if (filledSlots > emptySlots) {
+          slotLabel = `${emptySlots} empty slot${emptySlots !== 1 ? 's' : ''}`;
+        } else {
+          slotLabel = `${filledSlots} filled slot${filledSlots !== 1 ? 's' : ''}`;
+        }
+        const pctFull = totalSlots > 0 ? filledSlots / totalSlots : 0;
+        return { binder, slotLabel, pctFull };
+      }),
+    [state.binders],
+  );
+
+  // To Get overall progress
+  const toGetProgress = useMemo(() => {
+    if (state.toGet.length === 0) return null;
+    let desired = 0;
+    let acquired = 0;
+    for (const e of state.toGet) {
+      desired += e.desiredQuantity;
+      acquired += e.desiredQuantity - stillNeeded(e);
+    }
+    const pct = desired > 0 ? Math.round((acquired / desired) * 100) : 0;
+    return { desired, acquired, pct };
+  }, [state.toGet, stillNeeded]);
+
+  // Top 3 cards still most needed
+  const topNeeded = useMemo(
+    () =>
+      [...state.toGet]
+        .map((e) => ({ entry: e, needed: stillNeeded(e) }))
+        .filter((x) => x.needed > 0)
+        .sort((a, b) => b.needed - a.needed)
+        .slice(0, 3),
+    [state.toGet, stillNeeded],
+  );
+
+  // 8 most recently added collection cards
+  const recent = useMemo(
+    () =>
+      [...state.collection]
+        .sort((a, b) => b.dateAdded.localeCompare(a.dateAdded))
+        .slice(0, 8),
+    [state.collection],
+  );
+
+  const isEmpty = totalUnique === 0 && state.toGet.length === 0 && state.binders.length === 0;
 
   return (
-    <main className="page">
-      <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--accent)', marginBottom: '1.25rem' }}>
-        YgoBinder
-      </h1>
+    <main className="page dashboard">
+      <h1 className="dashboard__title">YgoBinder</h1>
 
-      {/* Stats bar */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-        gap: '0.75rem',
-        marginBottom: '1.5rem',
-      }}>
-        {[
-          { label: 'Unique Cards', value: totalUnique },
-          { label: 'Total Copies', value: totalCopiesCount },
-          { label: 'On To Get List', value: toGetCount },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius)',
-              padding: '0.85rem 1rem',
-            }}
-          >
-            <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--accent)' }}>
-              {stat.value}
-            </div>
-            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-              {stat.label}
-            </div>
-          </div>
-        ))}
+      {/* ── Stats ── */}
+      <div className="dashboard__stats">
+        <div className="dashboard__stat-tile">
+          <span className="dashboard__stat-value">{totalUnique}</span>
+          <span className="dashboard__stat-label">Unique Cards</span>
+        </div>
+        <div className="dashboard__stat-tile">
+          <span className="dashboard__stat-value">{totalCopiesCount}</span>
+          <span className="dashboard__stat-label">Total Copies</span>
+        </div>
+        <div className="dashboard__stat-tile">
+          <span className="dashboard__stat-value">{state.toGet.length}</span>
+          <span className="dashboard__stat-label">On To Get</span>
+        </div>
+        <div className="dashboard__stat-tile">
+          <span className="dashboard__stat-value dashboard__stat-value--dim">$-.--</span>
+          <span className="dashboard__stat-label">Est. Value</span>
+          <span className="dashboard__stat-note">coming soon</span>
+        </div>
       </div>
 
-      {/* Quick links */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+      {/* ── Quick links ── */}
+      <div className="dashboard__quick-links">
         <Link to="/search" className="btn btn-primary">Search Cards</Link>
-        <Link to="/collection" className="btn btn-ghost">View Collection</Link>
-        <Link to="/to-get" className="btn btn-ghost">View To Get</Link>
+        <Link to="/collection" className="btn btn-ghost">Collection</Link>
+        <Link to="/to-get" className="btn btn-ghost">To Get</Link>
+        <Link to="/binder" className="btn btn-ghost">Binders</Link>
       </div>
 
-      {/* Recently added */}
+      {/* ── Binders ── */}
+      {state.binders.length > 0 && (
+        <section className="dashboard__section">
+          <h2 className="dashboard__section-title">Binders</h2>
+          <div className="dashboard__binder-list">
+            {binderStats.map(({ binder, slotLabel, pctFull }) => (
+              <Link key={binder.id} to="/binder" className="dashboard__binder-row">
+                <div className="dashboard__binder-row__info">
+                  <span className="dashboard__binder-row__name">{binder.name}</span>
+                  <span className="dashboard__binder-row__meta">
+                    {binder.cols}×{binder.rows} · {binder.pages.length} page{binder.pages.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="dashboard__binder-row__right">
+                  <span className="dashboard__binder-row__slot-label">{slotLabel}</span>
+                  <div className="dashboard__mini-bar">
+                    <div
+                      className="dashboard__mini-bar__fill"
+                      style={{ width: `${Math.round(pctFull * 100)}%` }}
+                    />
+                  </div>
+                </div>
+                <span className="dashboard__binder-row__arrow">›</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── To Get ── */}
+      {state.toGet.length > 0 && toGetProgress && (
+        <section className="dashboard__section">
+          <h2 className="dashboard__section-title">To Get</h2>
+
+          <div className="dashboard__toget-progress">
+            <div className="dashboard__progress-bar">
+              <div
+                className="dashboard__progress-bar__fill"
+                style={{ width: `${toGetProgress.pct}%` }}
+              />
+            </div>
+            <span className="dashboard__progress-label">
+              {toGetProgress.acquired} of {toGetProgress.desired} copies acquired
+              <span className="dashboard__progress-pct"> · {toGetProgress.pct}%</span>
+            </span>
+          </div>
+
+          {topNeeded.length > 0 && (
+            <>
+              <p className="dashboard__sub-label">Most needed</p>
+              <div className="dashboard__needed-list">
+                {topNeeded.map(({ entry, needed }) => (
+                  <div key={entry.id} className="dashboard__needed-row">
+                    {entry.cardImageUrl && (
+                      <img
+                        className="dashboard__needed-thumb"
+                        src={entry.cardImageUrl}
+                        alt={entry.cardName}
+                      />
+                    )}
+                    <div className="dashboard__needed-info">
+                      <span className="dashboard__needed-name">{entry.cardName}</span>
+                      <span className="dashboard__needed-set">
+                        {entry.setCode} · {entry.rarity}
+                      </span>
+                    </div>
+                    <span className="dashboard__needed-count">{needed} needed</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+
+          <Link to="/to-get" className="dashboard__section-link">View full list →</Link>
+        </section>
+      )}
+
+      {/* ── Recently Added ── */}
       {recent.length > 0 && (
-        <>
-          <h2 style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>
-            Recently Added
-          </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(70px, 1fr))',
-            gap: '0.5rem',
-          }}>
+        <section className="dashboard__section">
+          <h2 className="dashboard__section-title">Recently Added</h2>
+          <div className="dashboard__recent-grid">
             {recent.map((entry) => (
               <div
                 key={entry.id}
+                className="dashboard__recent-card"
                 title={`${entry.cardName} (${entry.setCode})`}
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-sm)',
-                  overflow: 'hidden',
-                }}
               >
                 {entry.cardImageUrl ? (
-                  <img
-                    src={entry.cardImageUrl}
-                    alt={entry.cardName}
-                    style={{ width: '100%', aspectRatio: '421/614', objectFit: 'cover', display: 'block' }}
-                  />
+                  <img src={entry.cardImageUrl} alt={entry.cardName} />
                 ) : (
-                  <div style={{ aspectRatio: '421/614', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.65rem', color: 'var(--text-dim)' }}>
-                    No img
-                  </div>
+                  <div className="dashboard__recent-card__empty">?</div>
                 )}
               </div>
             ))}
           </div>
-        </>
+        </section>
       )}
 
-      {totalUnique === 0 && (
+      {isEmpty && (
         <div className="empty-state">
-          <strong>Your collection is empty</strong>
+          <strong>Welcome to YgoBinder!</strong>
           <p>Head to Search to find your first card.</p>
         </div>
       )}

@@ -35,18 +35,20 @@
 }
 
 .binder-page-nav__arrow {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 1rem;
+  border: 1px solid var(--border-light);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 1.3rem;
+  font-weight: 700;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1;
 }
-.binder-page-nav__arrow:hover:not(:disabled) { background: var(--surface-2); }
-.binder-page-nav__arrow:disabled { opacity: 0.3; cursor: default; }
+.binder-page-nav__arrow:hover:not(:disabled) { background: var(--surface-3); border-color: var(--accent); }
+.binder-page-nav__arrow:disabled { opacity: 0.25; cursor: default; }

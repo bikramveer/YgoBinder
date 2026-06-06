@@ -440,7 +440,7 @@ export function BinderPage() {
 
       {modal?.kind === 'card' && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
             <BinderCardModal
               slotData={modal.slotData}
               onRemoveFromSlot={handleRemoveFromSlot}

@@ -1,21 +1,75 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { CONDITION_LABELS, CONDITION_ORDER } from '../types';
 import type { ToGetEntry, Condition, ConditionCopy } from '../types';
+import { exportToGet } from '../utils/exportCsv';
+import './ToGetPage.css';
+
+type Sort =
+  | 'date_new' | 'date_old'
+  | 'name_asc' | 'name_desc'
+  | 'needed_most' | 'needed_least';
+
+const SORT_OPTIONS: { value: Sort; label: string }[] = [
+  { value: 'date_new',     label: 'Newest first' },
+  { value: 'date_old',     label: 'Oldest first' },
+  { value: 'name_asc',     label: 'Name (A→Z)' },
+  { value: 'name_desc',    label: 'Name (Z→A)' },
+  { value: 'needed_most',  label: 'Most needed first' },
+  { value: 'needed_least', label: 'Have enough first' },
+];
 
 type AcquireState = { entry: ToGetEntry; quantity: number; condition: Condition } | null;
 type RemoveDialog = { entry: ToGetEntry; amount: number } | null;
 
 export function ToGetPage() {
   const { state, dispatch, stillNeeded } = useCollection();
-  const [search, setSearch] = useState('');
-  const [acquiring, setAcquiring] = useState<AcquireState>(null);
-  const [removing, setRemoving] = useState<RemoveDialog>(null);
 
-  const filtered = state.toGet.filter((e) =>
-    e.cardName.toLowerCase().includes(search.toLowerCase()) ||
-    e.setName.toLowerCase().includes(search.toLowerCase()),
+  const [search,          setSearch]          = useState('');
+  const [sort,            setSort]            = useState<Sort>('date_new');
+  const [filterCondition, setFilterCondition] = useState<Condition | ''>('');
+  const [filterRarity,    setFilterRarity]    = useState('');
+  const [acquiring,       setAcquiring]       = useState<AcquireState>(null);
+  const [removing,        setRemoving]        = useState<RemoveDialog>(null);
+
+  // Unique rarities and conditions present in to-get list
+  const rarities = useMemo(
+    () => [...new Set(state.toGet.map((e) => e.rarity))].sort(),
+    [state.toGet],
   );
+  const conditionsPresent = useMemo(
+    () => CONDITION_ORDER.filter((c) => state.toGet.some((e) => e.minCondition === c)),
+    [state.toGet],
+  );
+
+  const entries = useMemo(() => {
+    const q = search.toLowerCase();
+    let list = state.toGet.filter(
+      (e) =>
+        e.cardName.toLowerCase().includes(q) ||
+        e.setName.toLowerCase().includes(q) ||
+        e.setCode.toLowerCase().includes(q),
+    );
+
+    if (filterCondition) {
+      list = list.filter((e) => e.minCondition === filterCondition);
+    }
+    if (filterRarity) {
+      list = list.filter((e) => e.rarity === filterRarity);
+    }
+
+    return [...list].sort((a, b) => {
+      switch (sort) {
+        case 'name_asc':     return a.cardName.localeCompare(b.cardName);
+        case 'name_desc':    return b.cardName.localeCompare(a.cardName);
+        case 'date_new':     return b.dateAdded.localeCompare(a.dateAdded);
+        case 'date_old':     return a.dateAdded.localeCompare(b.dateAdded);
+        case 'needed_most':  return stillNeeded(b) - stillNeeded(a);
+        case 'needed_least': return stillNeeded(a) - stillNeeded(b);
+        default: return 0;
+      }
+    });
+  }, [state.toGet, search, sort, filterCondition, filterRarity, stillNeeded]);
 
   const handleRemoveClick = (entry: ToGetEntry) => {
     if (entry.desiredQuantity === 1) {
@@ -44,99 +98,127 @@ export function ToGetPage() {
         To Get
       </h1>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Toolbar */}
+      <div className="toget-toolbar">
         <input
-          style={{ flex: 1, minWidth: '180px' }}
+          className="toget-toolbar__search"
           type="search"
-          placeholder="Filter by card or set name…"
+          placeholder="Search cards…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          {state.toGet.length} entries
+        <div className="toget-toolbar__controls">
+          <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={filterCondition}
+            onChange={(e) => setFilterCondition(e.target.value as Condition | '')}
+          >
+            <option value="">All conditions</option>
+            {conditionsPresent.map((c) => (
+              <option key={c} value={c}>Min {CONDITION_LABELS[c]} ({c})</option>
+            ))}
+          </select>
+
+          <select
+            value={filterRarity}
+            onChange={(e) => setFilterRarity(e.target.value)}
+          >
+            <option value="">All rarities</option>
+            {rarities.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
+        <span className="toget-toolbar__count">
+          {entries.length} of {state.toGet.length}
         </span>
+        {state.toGet.length > 0 && (
+          <button
+            className="btn btn-ghost toget-toolbar__export"
+            onClick={() => exportToGet(state.toGet, state.collection)}
+          >
+            Export CSV
+          </button>
+        )}
       </div>
 
-      {filtered.length === 0 && (
+      {/* Empty states */}
+      {state.toGet.length === 0 && (
         <div className="empty-state">
           <strong>Nothing on your list yet</strong>
           <p>Search for cards and add them to your To Get list.</p>
         </div>
       )}
 
-      {filtered.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Card</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Set</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Rarity</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Min Condition</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 500 }}>Need / Want</th>
-                <th style={{ padding: '0.4rem 0.5rem', textAlign: 'right', color: 'var(--text-muted)', fontWeight: 500 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((entry) => {
-                const needed = stillNeeded(entry);
-                return (
-                  <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '0.5rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {entry.cardImageUrl && (
-                          <img
-                            src={entry.cardImageUrl}
-                            alt={entry.cardName}
-                            style={{ width: 50, height: 73, objectFit: 'cover', borderRadius: 4, flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.4)' }}
-                          />
-                        )}
-                        <span style={{ fontWeight: 600 }}>{entry.cardName}</span>
-                      </div>
-                    </td>
-                    <td style={{ padding: '0.5rem', color: 'var(--text-muted)' }}>
-                      {entry.setName}<br />
-                      <span style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{entry.setCode}</span>
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>{entry.rarity}</td>
-                    <td style={{ padding: '0.5rem' }}>
-                      {CONDITION_LABELS[entry.minCondition]} ({entry.minCondition})
-                    </td>
-                    <td style={{ padding: '0.5rem' }}>
-                      <span style={{ color: needed > 0 ? 'var(--accent)' : 'var(--success)', fontWeight: 600 }}>
-                        {needed > 0 ? `${needed} still needed` : 'Have enough'}
-                      </span>
-                      <span style={{ color: 'var(--text-dim)', marginLeft: 4 }}>
-                        / {entry.desiredQuantity} wanted
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
-                        <button
-                          className="btn btn-success"
-                          onClick={() =>
-                            setAcquiring({
-                              entry,
-                              quantity: Math.max(1, needed),
-                              condition: entry.minCondition,
-                            })
-                          }
-                        >
-                          Acquired
-                        </button>
-                        <button
-                          className="btn btn-danger"
-                          onClick={() => handleRemoveClick(entry)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      {state.toGet.length > 0 && entries.length === 0 && (
+        <div className="empty-state">
+          <strong>No cards match your filters</strong>
+          <p>Try adjusting your search or filters.</p>
+        </div>
+      )}
+
+      {/* Entry list */}
+      {entries.length > 0 && (
+        <div className="toget-list">
+          {entries.map((entry) => {
+            const needed = stillNeeded(entry);
+            return (
+              <div key={entry.id} className="toget-row">
+                {entry.cardImageUrl && (
+                  <img
+                    className="toget-row__thumb"
+                    src={entry.cardImageUrl}
+                    alt={entry.cardName}
+                  />
+                )}
+
+                <div className="toget-row__info">
+                  <span className="toget-row__name">{entry.cardName}</span>
+                  <span className="toget-row__set">
+                    {entry.setName}
+                    {' · '}
+                    <span style={{ fontFamily: 'monospace' }}>{entry.setCode}</span>
+                  </span>
+                  <span className="toget-row__cond">
+                    {entry.rarity} · Min {CONDITION_LABELS[entry.minCondition]} ({entry.minCondition})
+                  </span>
+                </div>
+
+                <div className="toget-row__meta">
+                  <span className={`toget-row__needed ${needed > 0 ? 'toget-row__needed--pending' : 'toget-row__needed--ok'}`}>
+                    {needed > 0 ? `${needed} needed` : 'Have enough'}
+                  </span>
+                  <span className="toget-row__wanted">/ {entry.desiredQuantity} wanted</span>
+
+                  <button
+                    className="btn btn-success"
+                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+                    onClick={() =>
+                      setAcquiring({
+                        entry,
+                        quantity: Math.max(1, needed),
+                        condition: entry.minCondition,
+                      })
+                    }
+                  >
+                    Acquired
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
+                    onClick={() => handleRemoveClick(entry)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -185,7 +267,7 @@ export function ToGetPage() {
         </div>
       )}
 
-      {/* Remove quantity dialog */}
+      {/* Remove dialog */}
       {removing && (
         <div className="modal-backdrop" onClick={() => setRemoving(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
