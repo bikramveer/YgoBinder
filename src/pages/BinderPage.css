@@ -1,0 +1,52 @@
+/* ── Binder selector bar ── */
+.binder-selector {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.binder-selector__select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.binder-selector__actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* ── Page navigation bar ── */
+.binder-page-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.binder-page-nav__label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+}
+
+.binder-page-nav__arrow {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.binder-page-nav__arrow:hover:not(:disabled) { background: var(--surface-2); }
+.binder-page-nav__arrow:disabled { opacity: 0.3; cursor: default; }

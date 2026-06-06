@@ -1,0 +1,45 @@
+.binder-size-picker {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+
+.binder-size-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  padding: 6px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+}
+
+.binder-size-picker__cell {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.08s, border-color 0.08s, box-shadow 0.08s;
+}
+
+.binder-size-picker__cell--active {
+  background: var(--accent);
+  border-color: var(--accent-dim);
+  box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.25);
+}
+
+.binder-size-picker__label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 1.2em;
+}
+
+.binder-size-picker__sublabel {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-weight: 400;
+}

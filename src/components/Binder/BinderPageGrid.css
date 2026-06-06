@@ -1,0 +1,18 @@
+.binder-page-grid {
+  display: grid;
+  /* grid-template-columns set via inline style from cols prop */
+  gap: 6px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 12px;
+  background: #111122;
+  border-radius: 8px;
+  border: 2px solid var(--border);
+}
+
+@media (min-width: 640px) {
+  .binder-page-grid {
+    gap: 8px;
+    padding: 16px;
+  }
+}

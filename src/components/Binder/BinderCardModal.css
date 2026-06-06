@@ -1,0 +1,128 @@
+.binder-card-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 340px;
+}
+
+.binder-card-modal__header {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.binder-card-modal__img {
+  width: 70px;
+  height: 98px;
+  object-fit: cover;
+  border-radius: 5px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.binder-card-modal__info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.binder-card-modal__name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.binder-card-modal__sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.binder-card-modal__badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.binder-card-modal__badge--collection {
+  background: #1d9e74;
+  color: #fff;
+}
+
+.binder-card-modal__badge--toget {
+  background: var(--accent);
+  color: #000;
+}
+
+.binder-card-modal__section {
+  padding: 0.6rem 0.75rem;
+  background: var(--surface-2, #222238);
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+}
+
+.binder-card-modal__section-title {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.4rem;
+}
+
+.binder-card-modal__copies-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+}
+
+.binder-card-modal__copies-label {
+  color: var(--text-muted);
+}
+
+.binder-card-modal__qty-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.binder-card-modal__qty-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s;
+}
+.binder-card-modal__qty-btn:hover { background: var(--surface-2); }
+.binder-card-modal__qty-btn:disabled { opacity: 0.35; cursor: default; }
+
+.binder-card-modal__qty-val {
+  min-width: 24px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.binder-card-modal__footer {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 0.25rem;
+}

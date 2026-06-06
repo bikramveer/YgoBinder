@@ -1,0 +1,259 @@
+.card-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: 72vh;
+}
+
+/* ── Tabs ── */
+.card-picker__tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0;
+  flex-shrink: 0;
+}
+
+.card-picker__tab {
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+.card-picker__tab:hover { color: var(--text); }
+.card-picker__tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Search input ── */
+.card-picker__search {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* ── Scrollable list ── */
+.card-picker__list {
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 80px;
+}
+
+.card-picker__section-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0.4rem 0.25rem 0.2rem;
+}
+
+/* ── Entry block (card + condition rows) ── */
+.card-picker__entry {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 2px;
+  overflow: hidden;
+}
+
+.card-picker__entry-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  background: var(--surface-2);
+}
+
+/* ── Condition row (clickable) ── */
+.card-picker__condition-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.5rem 0.3rem 0.75rem;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  transition: background 0.12s;
+  font-size: 0.8rem;
+}
+.card-picker__condition-row:hover { background: var(--surface-3); }
+
+.card-picker__cond-badge {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-family: monospace;
+}
+
+.card-picker__cond-label {
+  flex: 1;
+  color: var(--text-muted);
+}
+
+.card-picker__cond-avail {
+  font-size: 0.72rem;
+  color: var(--success);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── Plain item row (for To Get entries) ── */
+.card-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s;
+  border: none;
+  background: none;
+  text-align: left;
+  width: 100%;
+  color: var(--text);
+}
+.card-picker__item:hover { background: var(--surface-2); }
+
+.card-picker__item-img {
+  width: 32px;
+  height: 45px;
+  object-fit: cover;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.card-picker__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-picker__item-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card-picker__item-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Empty state ── */
+.card-picker__empty {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  padding: 1.25rem 0;
+}
+
+/* ── Footer ── */
+.card-picker__footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  padding-top: 0.25rem;
+}
+
+/* ── Configure (Add new card) form ── */
+.card-picker__configure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.card-picker__back-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: color 0.12s;
+}
+.card-picker__back-btn:hover { color: var(--text); }
+
+.card-picker__config-header {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.card-picker__config-img {
+  width: 45px;
+  height: 63px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.card-picker__config-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-picker__config-tab {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+.card-picker__config-tab:hover { color: var(--text); }
+.card-picker__config-tab--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.card-picker__config-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card-picker__config-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.card-picker__config-label select {
+  width: 100%;
+  font-size: 0.8rem;
+}

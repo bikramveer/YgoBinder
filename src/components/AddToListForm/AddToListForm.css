@@ -1,0 +1,39 @@
+.add-form {
+  padding: 1.25rem;
+}
+
+.add-form__title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+.add-form__subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+
+.add-form__field {
+  margin-bottom: 0.85rem;
+}
+.add-form__label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.3rem;
+  font-weight: 500;
+}
+.add-form__field select,
+.add-form__field input {
+  width: 100%;
+}
+.add-form__field input[type='number'] {
+  width: 80px;
+}
+
+.add-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}

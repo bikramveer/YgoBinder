@@ -1,0 +1,159 @@
+/* ── Grid tile ─────────────────────────────────────────────────────────────── */
+.card-tile {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.card-tile:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.card-tile:hover .card-tile__quick-add {
+  opacity: 1;
+}
+
+.card-tile__image-wrap {
+  position: relative;
+  aspect-ratio: 421 / 614;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.card-tile__image-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-tile__image-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+}
+
+.card-tile__quick-add {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a1a0e;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 2;
+  box-shadow: var(--shadow);
+}
+/* Always visible on touch devices */
+@media (hover: none) {
+  .card-tile__quick-add { opacity: 1; }
+}
+
+.card-tile__badges {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  z-index: 2;
+}
+.card-tile__badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.card-tile__badge--collection { background: var(--accent); color: #1a1a0e; }
+.card-tile__badge--toget { background: var(--success); color: #fff; }
+
+.card-tile__info {
+  padding: 0.4rem 0.5rem 0.5rem;
+}
+.card-tile__name {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 0.25rem;
+}
+.card-tile__type-badge {
+  display: inline-block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+}
+
+/* ── List row ──────────────────────────────────────────────────────────────── */
+.card-list-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.card-list-row:hover { border-color: var(--accent); }
+
+.card-list-row__thumb {
+  width: 36px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+.card-list-row__info { flex: 1; min-width: 0; }
+.card-list-row__name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-list-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}
+.card-list-row__badges {
+  display: flex;
+  gap: 0.3rem;
+}
+.card-list-row__quick-add {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #1a1a0e;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}

@@ -1,0 +1,64 @@
+.card-grid-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.card-grid-controls__toggle {
+  display: flex;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.card-grid-controls__toggle button {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  transition: background 0.15s, color 0.15s;
+}
+.card-grid-controls__toggle button:hover { color: var(--text); }
+.card-grid-controls__toggle button.active { background: var(--surface-3); color: var(--accent); }
+
+/* Grid layout */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 480px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+}
+@media (min-width: 768px) {
+  .card-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+}
+
+/* List layout */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Sentinel for infinite scroll */
+.card-grid-sentinel {
+  height: 1px;
+}
+
+.card-grid-loading {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.card-grid-error {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--danger);
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
