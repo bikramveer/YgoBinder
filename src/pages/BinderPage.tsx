@@ -4,7 +4,7 @@ import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
-import type { Binder, BinderPage, Condition } from '../types';
+import type { Binder, BinderPage, BinderSlot, Condition } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import './BinderPage.css';
