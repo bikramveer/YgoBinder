@@ -149,6 +149,20 @@
   justify-content: center;
 }
 
+.navbar__drawer-currency {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+
+.navbar__drawer-currency-label {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}
+
 /* On wider screens, show links inline and hide hamburger */
 @media (min-width: 640px) {
   .navbar__links { display: flex; }

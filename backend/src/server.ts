@@ -4,12 +4,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { rateLimit } from 'express-rate-limit';
+import cron from 'node-cron';
 
 import authRouter from './routes/auth';
 import collectionRouter from './routes/collection';
 import togetRouter from './routes/toget';
 import bindersRouter from './routes/binders';
 import syncRouter from './routes/sync';
+import pricesRouter from './routes/prices';
+import { runPriceSync } from './services/priceSync';
 
 const app = express();
 
@@ -57,11 +60,18 @@ app.use('/collection', collectionRouter);
 app.use('/toget', togetRouter);
 app.use('/binders', bindersRouter);
 app.use('/sync', syncRouter);
+app.use('/prices', pricesRouter);
 
 // Health check — Railway uses this to confirm the server is running
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
+
+// ── Daily price sync — runs at midnight UTC ───────────────────────────────────
+
+cron.schedule('0 0 * * *', () => {
+  runPriceSync().catch((err) => console.error('Cron price sync failed:', err));
+}, { timezone: 'UTC' });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 

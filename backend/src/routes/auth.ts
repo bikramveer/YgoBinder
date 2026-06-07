@@ -26,6 +26,10 @@ const VerifyEmailSchema = z.object({
   code: z.string().length(6, 'Code must be exactly 6 digits.'),
 });
 
+const SettingsSchema = z.object({
+  preferredCurrency: z.enum(['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'JPY']).optional(),
+});
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function generateAccessToken(userId: number, email: string): string {
@@ -251,7 +255,7 @@ router.post('/logout', async (req: Request, res: Response) => {
 router.get('/me', requireAuth, async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT id, email, email_verified, created_at FROM users WHERE id = $1',
+      'SELECT id, email, email_verified, preferred_currency, created_at FROM users WHERE id = $1',
       [req.user!.userId]
     );
 
@@ -263,6 +267,32 @@ router.get('/me', requireAuth, async (req: Request, res: Response) => {
     res.json({ user: result.rows[0] });
   } catch (err) {
     console.error('Me error:', err);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// PATCH /auth/me — update account settings
+router.patch('/me', requireAuth, async (req: Request, res: Response) => {
+  const parsed = SettingsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { preferredCurrency } = parsed.data;
+  if (!preferredCurrency) {
+    res.status(400).json({ error: 'No settings provided.' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      'UPDATE users SET preferred_currency = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, preferred_currency',
+      [preferredCurrency, req.user!.userId]
+    );
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error('Settings error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });

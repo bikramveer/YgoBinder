@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AuthModal } from '../AuthModal/AuthModal';
+import { CurrencySelector } from '../CurrencySelector/CurrencySelector';
 import './Navbar.css';
 
 const NAV_ITEMS = [
@@ -47,22 +48,25 @@ export function Navbar() {
         </div>
 
         {/* Auth area — right side of desktop nav */}
-        {!isLoading && (
-          <div className="navbar__auth">
-            {isLoggedIn ? (
-              <>
-                <span className="navbar__user">{user!.email}</span>
-                <button className="btn btn-ghost navbar__signout" onClick={logout}>
-                  Sign out
+        <div className="navbar__auth">
+          <CurrencySelector />
+          {!isLoading && (
+            <>
+              {isLoggedIn ? (
+                <>
+                  <span className="navbar__user">{user!.email}</span>
+                  <button className="btn btn-ghost navbar__signout" onClick={logout}>
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn-primary navbar__signin" onClick={() => setAuthOpen(true)}>
+                  Sign in
                 </button>
-              </>
-            ) : (
-              <button className="btn btn-primary navbar__signin" onClick={() => setAuthOpen(true)}>
-                Sign in
-              </button>
-            )}
-          </div>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </nav>
 
       {/* Mobile drawer */}
@@ -83,28 +87,34 @@ export function Navbar() {
         ))}
 
         {/* Auth in drawer */}
-        {!isLoading && (
-          <div className="navbar__drawer-auth">
-            {isLoggedIn ? (
-              <>
-                <span className="navbar__drawer-user">{user!.email}</span>
-                <button
-                  className="btn btn-ghost navbar__drawer-signout"
-                  onClick={() => { logout(); setDrawerOpen(false); }}
-                >
-                  Sign out
-                </button>
-              </>
-            ) : (
-              <button
-                className="btn btn-primary navbar__drawer-signin"
-                onClick={() => { setAuthOpen(true); setDrawerOpen(false); }}
-              >
-                Sign in
-              </button>
-            )}
+        <div className="navbar__drawer-auth">
+          <div className="navbar__drawer-currency">
+            <span className="navbar__drawer-currency-label">Currency</span>
+            <CurrencySelector />
           </div>
-        )}
+          {!isLoading && (
+            <>
+              {isLoggedIn ? (
+                <>
+                  <span className="navbar__drawer-user">{user!.email}</span>
+                  <button
+                    className="btn btn-ghost navbar__drawer-signout"
+                    onClick={() => { logout(); setDrawerOpen(false); }}
+                  >
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="btn btn-primary navbar__drawer-signin"
+                  onClick={() => { setAuthOpen(true); setDrawerOpen(false); }}
+                >
+                  Sign in
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {authOpen && (

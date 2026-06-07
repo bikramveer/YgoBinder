@@ -6,8 +6,10 @@ import {
   clearCaches,
   type AuthUser,
 } from '../services/api';
+import type { CurrencyCode } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+const GUEST_CURRENCY_KEY = 'preferredCurrency';
 
 // ── Context shape ─────────────────────────────────────────────────────────────
 
@@ -15,11 +17,13 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoggedIn: boolean;
-  isLoading: boolean; // true while checking for an existing session on first mount
+  isLoading: boolean;
+  preferredCurrency: CurrencyCode;
   register: (email: string, password: string) => Promise<void>;
   verifyEmail: (email: string, code: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateCurrency: (currency: CurrencyCode) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -30,9 +34,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [preferredCurrency, setPreferredCurrency] = useState<CurrencyCode>(
+    () => (localStorage.getItem(GUEST_CURRENCY_KEY) as CurrencyCode | null) ?? 'USD',
+  );
 
-  // Give api.ts a way to update React state when a token is silently refreshed
-  // or when a refresh fails and the session is gone.
   useEffect(() => {
     registerAuthCallbacks(
       (newToken) => {
@@ -48,8 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
-  // On mount: try to restore a session using the refresh token cookie.
-  // The cookie persists across browser sessions so the user stays logged in.
+  // On mount: restore session from refresh token cookie
   useEffect(() => {
     const restore = async () => {
       try {
@@ -71,10 +75,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (meRes.ok) {
             const { user: me } = (await meRes.json()) as { user: AuthUser };
             setUser(me);
+            setPreferredCurrency((me.preferred_currency as CurrencyCode) ?? 'USD');
           }
         }
       } catch {
-        // No valid session — stay as guest, no error needed
+        // No valid session — stay as guest
       } finally {
         setIsLoading(false);
       }
@@ -92,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthToken(newToken);
     setToken(newToken);
     setUser(me);
+    setPreferredCurrency((me.preferred_currency as CurrencyCode) ?? 'USD');
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
@@ -99,6 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthToken(newToken);
     setToken(newToken);
     setUser(me);
+    setPreferredCurrency((me.preferred_currency as CurrencyCode) ?? 'USD');
   }, []);
 
   const logout = useCallback(async () => {
@@ -107,11 +114,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
     setAuthToken(null);
     clearCaches();
+    // Revert to whatever the guest preference was
+    setPreferredCurrency(
+      (localStorage.getItem(GUEST_CURRENCY_KEY) as CurrencyCode | null) ?? 'USD',
+    );
   }, []);
+
+  const updateCurrency = useCallback(
+    async (currency: CurrencyCode) => {
+      setPreferredCurrency(currency); // optimistic
+      if (user) {
+        await authApi.updateSettings(currency);
+        setUser((prev) => prev ? { ...prev, preferred_currency: currency } : prev);
+      } else {
+        localStorage.setItem(GUEST_CURRENCY_KEY, currency);
+      }
+    },
+    [user],
+  );
 
   return (
     <AuthContext.Provider
-      value={{ user, token, isLoggedIn: !!user, isLoading, register, verifyEmail, login, logout }}
+      value={{
+        user,
+        token,
+        isLoggedIn: !!user,
+        isLoading,
+        preferredCurrency,
+        register,
+        verifyEmail,
+        login,
+        logout,
+        updateCurrency,
+      }}
     >
       {children}
     </AuthContext.Provider>
