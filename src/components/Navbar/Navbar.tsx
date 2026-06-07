@@ -6,7 +6,7 @@ import { CurrencySelector } from '../CurrencySelector/CurrencySelector';
 import './Navbar.css';
 
 const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard' },
+  { to: '/dashboard', label: 'Dashboard' },
   { to: '/search', label: 'Search' },
   { to: '/collection', label: 'Collection' },
   { to: '/to-get', label: 'To Get' },
@@ -37,11 +37,11 @@ export function Navbar() {
           <span />
         </button>
 
-        <NavLink to="/" end className="navbar__logo">YgoBinder</NavLink>
+        <NavLink to="/dashboard" className="navbar__logo">YgoBinder</NavLink>
 
         <div className="navbar__links">
           {NAV_ITEMS.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'} className={linkClass}>
+            <NavLink key={item.to} to={item.to} className={linkClass}>
               {item.label}
             </NavLink>
           ))}
