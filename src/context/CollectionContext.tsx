@@ -1,11 +1,14 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useState, useCallback } from 'react';
 import type { AppState, CollectionEntry, ToGetEntry, ConditionCopy, Condition, Binder, BinderPage, BinderSlot } from '../types';
 import { CONDITION_ORDER } from '../types';
 import { loadState, saveState } from '../utils/storage';
+import { useAuth } from './AuthContext';
+import { collectionApi, toGetApi, syncApi } from '../services/api';
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 type Action =
+  | { type: 'LOAD_STATE'; state: AppState }
   | { type: 'ADD_TO_COLLECTION'; entry: CollectionEntry }
   | { type: 'UPDATE_COLLECTION_COPIES'; id: string; copies: ConditionCopy[] }
   | { type: 'UPDATE_COLLECTION_NOTES'; id: string; notes: string }
@@ -16,7 +19,6 @@ type Action =
   | { type: 'REMOVE_FROM_TO_GET'; id: string }
   | { type: 'REDUCE_TO_GET_QUANTITY'; id: string; amount: number }
   | { type: 'ACQUIRE'; toGetId: string; acquiredCopies: ConditionCopy[] }
-  // Binder actions
   | { type: 'CREATE_BINDER'; binder: Binder }
   | { type: 'RENAME_BINDER'; binderId: string; name: string }
   | { type: 'DELETE_BINDER'; binderId: string }
@@ -24,6 +26,8 @@ type Action =
   | { type: 'REMOVE_BINDER_PAGE'; binderId: string; pageId: string }
   | { type: 'ASSIGN_BINDER_SLOT'; binderId: string; pageId: string; slotIndex: number; entry: BinderSlot | null }
   | { type: 'MOVE_BINDER_SLOT'; binderId: string; fromPageId: string; fromSlot: number; toPageId: string; toSlot: number };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sortCopies(copies: ConditionCopy[]): ConditionCopy[] {
   return [...copies].sort(
@@ -40,8 +44,13 @@ function mergeCopies(existing: ConditionCopy[], incoming: ConditionCopy[]): Cond
   );
 }
 
+// ── Reducer ───────────────────────────────────────────────────────────────────
+
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
+    case 'LOAD_STATE':
+      return action.state;
+
     case 'ADD_TO_COLLECTION': {
       const existing = state.collection.find((e) => e.id === action.entry.id);
       if (existing) {
@@ -81,7 +90,6 @@ function reducer(state: AppState, action: Action): AppState {
       if (!entry) return state;
       let updated: ConditionCopy[];
       if (action.condition) {
-        // Condition-specific removal
         updated = entry.copies.reduce<ConditionCopy[]>((acc, copy) => {
           if (copy.condition !== action.condition) { acc.push(copy); return acc; }
           const newQty = copy.quantity - action.amount;
@@ -89,7 +97,6 @@ function reducer(state: AppState, action: Action): AppState {
           return acc;
         }, []);
       } else {
-        // Fallback: remove from worst condition first
         let remaining = action.amount;
         updated = [...entry.copies]
           .sort((a, b) => CONDITION_ORDER.indexOf(b.condition) - CONDITION_ORDER.indexOf(a.condition))
@@ -114,7 +121,6 @@ function reducer(state: AppState, action: Action): AppState {
     case 'ADD_TO_TO_GET': {
       const existing = state.toGet.find((e) => e.id === action.entry.id);
       if (existing) {
-        // merge desired quantity; keep stricter (better) minCondition
         const betterCondition =
           CONDITION_ORDER.indexOf(action.entry.minCondition) <
           CONDITION_ORDER.indexOf(existing.minCondition)
@@ -124,11 +130,7 @@ function reducer(state: AppState, action: Action): AppState {
           ...state,
           toGet: state.toGet.map((e) =>
             e.id === action.entry.id
-              ? {
-                  ...e,
-                  desiredQuantity: e.desiredQuantity + action.entry.desiredQuantity,
-                  minCondition: betterCondition,
-                }
+              ? { ...e, desiredQuantity: e.desiredQuantity + action.entry.desiredQuantity, minCondition: betterCondition }
               : e,
           ),
         };
@@ -139,9 +141,7 @@ function reducer(state: AppState, action: Action): AppState {
     case 'UPDATE_TO_GET':
       return {
         ...state,
-        toGet: state.toGet.map((e) =>
-          e.id === action.id ? { ...e, ...action.patch } : e,
-        ),
+        toGet: state.toGet.map((e) => e.id === action.id ? { ...e, ...action.patch } : e),
       };
 
     case 'REMOVE_FROM_TO_GET':
@@ -161,9 +161,6 @@ function reducer(state: AppState, action: Action): AppState {
     }
 
     case 'ACQUIRE': {
-      // Add acquired copies to Collection without touching desiredQuantity.
-      // stillNeeded is computed as (desiredQuantity - totalOwned), so it
-      // updates automatically once the collection entry is updated.
       const toGetEntry = state.toGet.find((e) => e.id === action.toGetId);
       if (!toGetEntry) return state;
 
@@ -189,7 +186,6 @@ function reducer(state: AppState, action: Action): AppState {
         ? state.collection.map((e) => e.id === toGetEntry.id ? { ...e, copies: newCopies } : e)
         : [...state.collection, collectionEntry];
 
-      // Auto-remove from To Get once we own enough
       const nextToGet = newTotalOwned >= toGetEntry.desiredQuantity
         ? state.toGet.filter((e) => e.id !== action.toGetId)
         : state.toGet;
@@ -211,16 +207,15 @@ function reducer(state: AppState, action: Action): AppState {
     case 'DELETE_BINDER':
       return { ...state, binders: state.binders.filter((b) => b.id !== action.binderId) };
 
-    case 'ADD_BINDER_PAGE': {
+    case 'ADD_BINDER_PAGE':
       return {
         ...state,
         binders: state.binders.map((b) =>
           b.id === action.binderId ? { ...b, pages: [...b.pages, action.page] } : b,
         ),
       };
-    }
 
-    case 'REMOVE_BINDER_PAGE': {
+    case 'REMOVE_BINDER_PAGE':
       return {
         ...state,
         binders: state.binders.map((b) => {
@@ -229,9 +224,8 @@ function reducer(state: AppState, action: Action): AppState {
           return { ...b, pages: pages.length > 0 ? pages : b.pages };
         }),
       };
-    }
 
-    case 'ASSIGN_BINDER_SLOT': {
+    case 'ASSIGN_BINDER_SLOT':
       return {
         ...state,
         binders: state.binders.map((b) => {
@@ -247,29 +241,144 @@ function reducer(state: AppState, action: Action): AppState {
           };
         }),
       };
-    }
 
-    case 'MOVE_BINDER_SLOT': {
+    case 'MOVE_BINDER_SLOT':
       return {
         ...state,
         binders: state.binders.map((b) => {
           if (b.id !== action.binderId) return b;
-          // Build a mutable copy of all pages
           const pages = b.pages.map((p) => ({ ...p, slots: [...p.slots] }));
           const fromPage = pages.find((p) => p.id === action.fromPageId);
           const toPage = pages.find((p) => p.id === action.toPageId);
           if (!fromPage || !toPage) return b;
-          // Swap the two slots (handles drop-on-filled by swapping)
           const tmp = fromPage.slots[action.fromSlot];
           fromPage.slots[action.fromSlot] = toPage.slots[action.toSlot];
           toPage.slots[action.toSlot] = tmp;
           return { ...b, pages };
         }),
       };
-    }
 
     default:
       return state;
+  }
+}
+
+// ── API sync (fire-and-forget side effects) ───────────────────────────────────
+
+async function syncToApi(action: Action, prevState: AppState): Promise<void> {
+  switch (action.type) {
+    case 'ADD_TO_COLLECTION':
+      for (const copy of action.entry.copies) {
+        await collectionApi.addCopy(action.entry, copy);
+      }
+      break;
+
+    case 'REMOVE_FROM_COLLECTION': {
+      const entry = prevState.collection.find((e) => e.id === action.id);
+      if (entry) {
+        await collectionApi.removeAllCopies(action.id, entry.copies.map((c) => c.condition));
+      }
+      break;
+    }
+
+    case 'REMOVE_COLLECTION_COPIES': {
+      if (!action.condition) break; // worst-first multi-copy removal — skip for now
+      const entry = prevState.collection.find((e) => e.id === action.id);
+      const copy = entry?.copies.find((c) => c.condition === action.condition);
+      if (!copy) break;
+      const newQty = copy.quantity - action.amount;
+      if (newQty <= 0) {
+        await collectionApi.removeCopy(action.id, action.condition);
+      } else {
+        await collectionApi.updateCopyQuantity(action.id, action.condition, newQty);
+      }
+      break;
+    }
+
+    case 'UPDATE_COLLECTION_COPIES': {
+      const oldEntry = prevState.collection.find((e) => e.id === action.id);
+      if (!oldEntry) break;
+      // Remove copies that no longer exist
+      for (const old of oldEntry.copies) {
+        if (!action.copies.find((c) => c.condition === old.condition)) {
+          await collectionApi.removeCopy(action.id, old.condition);
+        }
+      }
+      // Add new copies or update changed quantities
+      for (const newCopy of action.copies) {
+        const old = oldEntry.copies.find((c) => c.condition === newCopy.condition);
+        if (!old) {
+          await collectionApi.addCopy(oldEntry, newCopy);
+        } else if (old.quantity !== newCopy.quantity) {
+          await collectionApi.updateCopyQuantity(action.id, newCopy.condition, newCopy.quantity);
+        }
+      }
+      break;
+    }
+
+    case 'ADD_TO_TO_GET':
+      await toGetApi.add(action.entry);
+      break;
+
+    case 'UPDATE_TO_GET': {
+      const patch: { condition?: Condition; quantity?: number } = {};
+      if (action.patch.minCondition !== undefined) patch.condition = action.patch.minCondition;
+      if (action.patch.desiredQuantity !== undefined) patch.quantity = action.patch.desiredQuantity;
+      if (Object.keys(patch).length > 0) await toGetApi.update(action.id, patch);
+      break;
+    }
+
+    case 'REMOVE_FROM_TO_GET':
+      await toGetApi.remove(action.id);
+      break;
+
+    case 'REDUCE_TO_GET_QUANTITY': {
+      const entry = prevState.toGet.find((e) => e.id === action.id);
+      if (!entry) break;
+      const newQty = entry.desiredQuantity - action.amount;
+      if (newQty <= 0) {
+        await toGetApi.remove(action.id);
+      } else {
+        await toGetApi.update(action.id, { quantity: newQty });
+      }
+      break;
+    }
+
+    case 'ACQUIRE': {
+      const toGetEntry = prevState.toGet.find((e) => e.id === action.toGetId);
+      if (!toGetEntry) break;
+
+      for (const copy of action.acquiredCopies) {
+        await collectionApi.addCopy(
+          {
+            id: toGetEntry.id,
+            cardId: toGetEntry.cardId,
+            cardName: toGetEntry.cardName,
+            cardImageUrl: toGetEntry.cardImageUrl,
+            setName: toGetEntry.setName,
+            setCode: toGetEntry.setCode,
+            rarity: toGetEntry.rarity,
+            copies: [copy],
+            dateAdded: new Date().toISOString(),
+          },
+          copy,
+        );
+      }
+
+      // Remove toGet if fully acquired (mirrors the reducer logic)
+      const existingOwned =
+        prevState.collection.find((e) => e.id === toGetEntry.id)
+          ?.copies.reduce((s, c) => s + c.quantity, 0) ?? 0;
+      const newlyAcquired = action.acquiredCopies.reduce((s, c) => s + c.quantity, 0);
+      if (existingOwned + newlyAcquired >= toGetEntry.desiredQuantity) {
+        await toGetApi.remove(action.toGetId);
+      }
+      break;
+    }
+
+    // Binder actions: no API sync yet (Phase 6)
+    default:
+      break;
   }
 }
 
@@ -280,16 +389,121 @@ interface CollectionContextValue {
   dispatch: React.Dispatch<Action>;
   totalOwned: (entryId: string) => number;
   stillNeeded: (entry: ToGetEntry) => number;
+  apiLoading: boolean;
+  showSyncPrompt: boolean;
+  importLocalData: () => Promise<void>;
+  dismissSyncPrompt: () => void;
 }
 
 const CollectionContext = createContext<CollectionContextValue | null>(null);
 
-export function CollectionProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, loadState);
+// ── Provider ──────────────────────────────────────────────────────────────────
 
+export function CollectionProvider({ children }: { children: React.ReactNode }) {
+  const { isLoggedIn, isLoading: authLoading } = useAuth();
+  const [state, dispatch] = useReducer(reducer, undefined, loadState);
+  const [apiLoading, setApiLoading] = useState(false);
+  const [showSyncPrompt, setShowSyncPrompt] = useState(false);
+  const [localSnapshot, setLocalSnapshot] = useState<AppState | null>(null);
+
+  // Always-current ref so syncToApi can read prevState synchronously
+  const stateRef = useRef(state);
+  useEffect(() => { stateRef.current = state; }, [state]);
+
+  // Track whether the user was previously logged in to detect transitions
+  const prevLoggedIn = useRef(false);
+
+  // Detect login / logout transitions
   useEffect(() => {
+    if (authLoading) return;
+
+    if (isLoggedIn && !prevLoggedIn.current) {
+      // User just logged in (or session was restored on mount)
+      prevLoggedIn.current = true;
+      void loadFromApi();
+    } else if (!isLoggedIn && prevLoggedIn.current) {
+      // User just logged out — reset to whatever is in localStorage
+      prevLoggedIn.current = false;
+      dispatch({ type: 'LOAD_STATE', state: loadState() });
+    }
+  }, [isLoggedIn, authLoading]);
+
+  async function loadFromApi() {
+    setApiLoading(true);
+    try {
+      // Snapshot local data BEFORE replacing state — used for sync prompt
+      const snapshot = loadState();
+
+      const [collection, toGet] = await Promise.all([
+        collectionApi.fetchAll(),
+        toGetApi.fetchAll(),
+      ]);
+
+      // Replace state with server data; preserve binders (not yet synced)
+      dispatch({
+        type: 'LOAD_STATE',
+        state: { collection, toGet, binders: stateRef.current.binders },
+      });
+
+      // Offer to import local data if the user had anything saved as a guest
+      if (snapshot.collection.length > 0 || snapshot.toGet.length > 0) {
+        setLocalSnapshot(snapshot);
+        setShowSyncPrompt(true);
+      }
+    } catch (err) {
+      console.error('Failed to load collection from API:', err);
+    } finally {
+      setApiLoading(false);
+    }
+  }
+
+  // Guests: persist every state change to localStorage.
+  // Logged-in users: the API is the source of truth — don't overwrite with local data.
+  useEffect(() => {
+    if (isLoggedIn || authLoading) return;
     saveState(state);
-  }, [state]);
+  }, [state, isLoggedIn, authLoading]);
+
+  // Dispatch wrapper: updates local state immediately (optimistic),
+  // then fires the matching API call as a side effect.
+  const apiAwareDispatch = useCallback(
+    (action: Action) => {
+      const prevState = stateRef.current;
+      dispatch(action);
+      if (isLoggedIn) {
+        syncToApi(action, prevState).catch((err) =>
+          console.error('API sync failed for', action.type, err),
+        );
+      }
+    },
+    [isLoggedIn],
+  );
+
+  const importLocalData = useCallback(async () => {
+    if (!localSnapshot) return;
+    try {
+      await syncApi.importLocalData(localSnapshot.collection, localSnapshot.toGet);
+      // Re-fetch to get the merged server state
+      const [collection, toGet] = await Promise.all([
+        collectionApi.fetchAll(),
+        toGetApi.fetchAll(),
+      ]);
+      dispatch({
+        type: 'LOAD_STATE',
+        state: { collection, toGet, binders: stateRef.current.binders },
+      });
+    } catch (err) {
+      console.error('Import failed:', err);
+    } finally {
+      setShowSyncPrompt(false);
+      setLocalSnapshot(null);
+    }
+  }, [localSnapshot]);
+
+  const dismissSyncPrompt = useCallback(() => {
+    setShowSyncPrompt(false);
+    setLocalSnapshot(null);
+  }, []);
 
   const totalOwned = (entryId: string): number => {
     const entry = state.collection.find((e) => e.id === entryId);
@@ -297,16 +511,28 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
     return entry.copies.reduce((sum, c) => sum + c.quantity, 0);
   };
 
-  const stillNeeded = (entry: ToGetEntry): number => {
-    return Math.max(0, entry.desiredQuantity - totalOwned(entry.id));
-  };
+  const stillNeeded = (entry: ToGetEntry): number =>
+    Math.max(0, entry.desiredQuantity - totalOwned(entry.id));
 
   return (
-    <CollectionContext.Provider value={{ state, dispatch, totalOwned, stillNeeded }}>
+    <CollectionContext.Provider
+      value={{
+        state,
+        dispatch: apiAwareDispatch,
+        totalOwned,
+        stillNeeded,
+        apiLoading,
+        showSyncPrompt,
+        importLocalData,
+        dismissSyncPrompt,
+      }}
+    >
       {children}
     </CollectionContext.Provider>
   );
 }
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useCollection(): CollectionContextValue {
   const ctx = useContext(CollectionContext);

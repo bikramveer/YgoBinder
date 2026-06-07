@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE TABLE IF NOT EXISTS collection_entries (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_key     VARCHAR(255) NOT NULL, -- frontend composite key: "${cardId}-${setCode}-${rarityCode}"
   card_id       INTEGER NOT NULL,
   card_name     VARCHAR(255) NOT NULL,
   card_image_url TEXT NOT NULL,
@@ -43,13 +44,14 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   condition     VARCHAR(10) NOT NULL CHECK (condition IN ('NM', 'LP', 'MP', 'HP', 'DMG')),
   quantity      INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
   date_added    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, card_id, set_code, rarity, condition)
+  UNIQUE (user_id, entry_key, condition)
 );
 
 -- To Get entries — one row per user + card + set + rarity (condition = minimum acceptable)
 CREATE TABLE IF NOT EXISTS toget_entries (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  entry_key     VARCHAR(255) NOT NULL, -- frontend composite key: "${cardId}-${setCode}-${rarityCode}"
   card_id       INTEGER NOT NULL,
   card_name     VARCHAR(255) NOT NULL,
   card_image_url TEXT NOT NULL,
@@ -59,7 +61,7 @@ CREATE TABLE IF NOT EXISTS toget_entries (
   condition     VARCHAR(10) NOT NULL CHECK (condition IN ('NM', 'LP', 'MP', 'HP', 'DMG')),
   quantity      INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 1),
   date_added    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE (user_id, card_id, set_code, rarity)
+  UNIQUE (user_id, entry_key)
 );
 
 -- Binders

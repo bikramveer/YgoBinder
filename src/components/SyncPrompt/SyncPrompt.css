@@ -1,0 +1,43 @@
+.sync-prompt {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 600;
+  width: min(calc(100vw - 2rem), 480px);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  padding: 1rem 1.25rem;
+}
+
+.sync-prompt__content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sync-prompt__text {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--text);
+  min-width: 200px;
+}
+
+.sync-prompt__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.sync-prompt__import {
+  font-size: 0.83rem;
+  padding: 0.35rem 0.9rem;
+}
+
+.sync-prompt__dismiss {
+  font-size: 0.83rem;
+  padding: 0.35rem 0.75rem;
+}

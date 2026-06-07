@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { AuthModal } from '../AuthModal/AuthModal';
 import './Navbar.css';
 
 const NAV_ITEMS = [
@@ -11,7 +13,9 @@ const NAV_ITEMS = [
 ];
 
 export function Navbar() {
-  const [open, setOpen] = useState(false);
+  const { user, isLoggedIn, isLoading, logout } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `navbar__link${isActive ? ' navbar__link--active' : ''}`;
@@ -23,8 +27,8 @@ export function Navbar() {
     <>
       <nav className="navbar">
         <button
-          className={`navbar__hamburger${open ? ' navbar__hamburger--open' : ''}`}
-          onClick={() => setOpen((v) => !v)}
+          className={`navbar__hamburger${drawerOpen ? ' navbar__hamburger--open' : ''}`}
+          onClick={() => setDrawerOpen((v) => !v)}
           aria-label="Toggle menu"
         >
           <span />
@@ -41,25 +45,71 @@ export function Navbar() {
             </NavLink>
           ))}
         </div>
+
+        {/* Auth area — right side of desktop nav */}
+        {!isLoading && (
+          <div className="navbar__auth">
+            {isLoggedIn ? (
+              <>
+                <span className="navbar__user">{user!.email}</span>
+                <button className="btn btn-ghost navbar__signout" onClick={logout}>
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-primary navbar__signin" onClick={() => setAuthOpen(true)}>
+                Sign in
+              </button>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Mobile drawer */}
-      {open && (
-        <div className="navbar__drawer-overlay" onClick={() => setOpen(false)} />
+      {drawerOpen && (
+        <div className="navbar__drawer-overlay" onClick={() => setDrawerOpen(false)} />
       )}
-      <div className={`navbar__drawer${open ? ' navbar__drawer--open' : ''}`}>
+      <div className={`navbar__drawer${drawerOpen ? ' navbar__drawer--open' : ''}`}>
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.to === '/'}
             className={drawerLinkClass}
-            onClick={() => setOpen(false)}
+            onClick={() => setDrawerOpen(false)}
           >
             {item.label}
           </NavLink>
         ))}
+
+        {/* Auth in drawer */}
+        {!isLoading && (
+          <div className="navbar__drawer-auth">
+            {isLoggedIn ? (
+              <>
+                <span className="navbar__drawer-user">{user!.email}</span>
+                <button
+                  className="btn btn-ghost navbar__drawer-signout"
+                  onClick={() => { logout(); setDrawerOpen(false); }}
+                >
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <button
+                className="btn btn-primary navbar__drawer-signin"
+                onClick={() => { setAuthOpen(true); setDrawerOpen(false); }}
+              >
+                Sign in
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {authOpen && (
+        <AuthModal onClose={() => setAuthOpen(false)} />
+      )}
     </>
   );
 }

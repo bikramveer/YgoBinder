@@ -101,8 +101,57 @@
 .navbar__drawer-link:hover { color: var(--text); background: var(--surface-2); }
 .navbar__drawer-link--active { color: var(--accent); background: var(--surface-2); }
 
+/* Auth area — desktop */
+.navbar__auth {
+  display: none;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.navbar__user {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__signin,
+.navbar__signout {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  white-space: nowrap;
+}
+
+/* Auth area — mobile drawer */
+.navbar__drawer-auth {
+  margin-top: auto;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.navbar__drawer-user {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.navbar__drawer-signin,
+.navbar__drawer-signout {
+  width: 100%;
+  justify-content: center;
+}
+
 /* On wider screens, show links inline and hide hamburger */
 @media (min-width: 640px) {
   .navbar__links { display: flex; }
+  .navbar__auth { display: flex; }
   .navbar__hamburger { display: none; }
 }
