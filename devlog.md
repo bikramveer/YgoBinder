@@ -12,8 +12,13 @@ This file is a running record of everything built, every architectural decision 
    - [Architecture Decisions](#architecture-decisions)
    - [Guest Mode](#guest-mode)
    - [Security Measures](#security-measures)
-4. [Key Technical Decisions](#4-key-technical-decisions)
-5. [Learning Resources](#5-learning-resources)
+4. [Phase 5: Frontend Wiring + Deployment](#4-phase-5-frontend-wiring--deployment)
+   - [What Was Built](#what-was-built)
+   - [Deployment War Stories](#deployment-war-stories)
+   - [Bugs Fixed After Launch](#bugs-fixed-after-launch)
+5. [What's Left to Build](#5-whats-left-to-build)
+6. [Key Technical Decisions](#6-key-technical-decisions)
+7. [Learning Resources](#7-learning-resources)
 
 ---
 
@@ -335,7 +340,150 @@ EMAIL_API_KEY=  Brevo or Resend API key for sending OTP emails
 
 ---
 
-## 4. Key Technical Decisions
+---
+
+## 4. Phase 5: Frontend Wiring + Deployment
+
+### What Was Built
+
+| File | What it does |
+|---|---|
+| `src/services/api.ts` | Typed API client. Holds auth token in a module-level variable. UUID caches (Maps) populated on login so PUT/DELETE can find backend rows. Handles silent token refresh on 401. |
+| `src/context/AuthContext.tsx` | On mount, calls `POST /auth/refresh` to restore session from cookie. Exposes `login`, `logout`, `register`, `verifyEmail`. Sets `isLoading: true` until the session check completes — prevents the navbar from flashing "Sign in" when you're actually logged in. |
+| `src/components/AuthModal/` | Single component with three views: Login → Register → Verify OTP. Handles the `EMAIL_NOT_VERIFIED` error code from login by jumping straight to the verify view. OTP input is numeric-only with large letter-spacing. |
+| `src/components/Navbar/` | Added "Sign in" / email + "Sign out" controls on desktop and in the mobile drawer. Hidden while `isLoading` to prevent flicker. |
+| `src/context/CollectionContext.tsx` | Replaced `dispatch` with `apiAwareDispatch`: dispatches locally first (optimistic), then fires the matching API call as a fire-and-forget side effect. On login, fetches from API and replaces local state. On logout, reloads from localStorage. `saveState` only runs for guests. |
+| `src/components/SyncPrompt/` | Fixed bottom banner shown after first login if local guest data exists. "Import" calls `POST /sync` then re-fetches. "Discard" dismisses cleanly. |
+| `src/components/GuestBanner/` | Fixed bottom banner for guests: explains data is local-only, links to sign in. Dismissible and remembers the dismissal in localStorage. |
+
+**Key architectural patterns:**
+
+**Optimistic updates** — The UI always updates instantly. The API call happens after. If it fails, it's logged to console. For a personal collection tool this is the right tradeoff — the alternative (waiting for the server before updating the UI) makes every interaction feel slow.
+
+**UUID caching** — The frontend identifies cards by a composite key like `46986414-LOB-EN005-UR`. The database identifies rows by UUID. We maintain two Maps in `api.ts` that translate between them. These are populated when you log in (via `fetchAll`) and kept current on every add. This means React state never needs to hold backend UUIDs.
+
+**Token refresh flow** — Access tokens expire in 15 minutes. `api.ts` detects a 401, silently calls `POST /auth/refresh`, and retries the original request — all invisible to the user. If the refresh fails (cookie expired or logged out elsewhere), `onSessionExpired()` is called and AuthContext logs the user out.
+
+**Binders are local-only** — Binder sync to the server is deferred to Phase 7. On login, binders reset to `[]` (not carried from localStorage). The SyncPrompt includes binders in its "do you have local data?" check. If you click Import, your local binders are restored to state (but not written to the server yet). If you Discard, you start with an empty binder list.
+
+---
+
+### Deployment War Stories
+
+These are the real problems that came up when going from "works on my machine" to "works on Railway + Vercel." They're worth understanding because you'll hit variations of all of them in future projects.
+
+---
+
+#### 1. Internal vs. public database URL
+
+Railway gives you two PostgreSQL connection strings:
+- `DATABASE_URL` — uses an internal hostname (`postgres.railway.internal`) only reachable within Railway's private network
+- `DATABASE_PUBLIC_URL` — uses a public hostname, reachable from anywhere
+
+**What happened:** Using `DATABASE_URL` locally gave `ENOTFOUND postgres.railway.internal`. The hostname doesn't exist outside Railway.
+
+**Fix:** Use `DATABASE_PUBLIC_URL` in your local `.env`. Use `DATABASE_URL` in Railway's environment variables (for the deployed service, which is inside the network).
+
+---
+
+#### 2. Railway's reverse proxy and rate limiting
+
+Railway puts a reverse proxy in front of your server. The proxy adds an `X-Forwarded-For` header with the real client IP. But `express-rate-limit` saw this header and threw:
+
+```
+ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+```
+
+Because Express didn't know it was behind a proxy (and couldn't verify the header wasn't forged by a client).
+
+**Fix:** `app.set('trust proxy', 1)` — tells Express to trust the first hop in `X-Forwarded-For`. This must come before you attach any rate limiters.
+
+**Why it matters:** If you skip this, rate limiting doesn't work correctly — it'll either crash or rate-limit by the proxy's IP (blocking everyone) instead of the real client IPs.
+
+---
+
+#### 3. Vite bakes environment variables at build time
+
+Vite replaces `import.meta.env.VITE_*` at build time, not runtime. So if `VITE_API_URL` isn't set when Vercel builds your app, every API call in the built bundle will point to `undefined` (which defaults to `localhost:3001`).
+
+**What happened:** The app was deployed but all API calls were going to `localhost:3001` in the user's browser — a server that doesn't exist there.
+
+**Fix:** Add `VITE_API_URL=https://your-railway-url.up.railway.app` in Vercel → Settings → Environment Variables, then redeploy. Vercel won't pick it up until a new build runs.
+
+**Lesson:** Environment variables in Vite are fundamentally different from Node.js — they're compile-time constants, not runtime values.
+
+---
+
+#### 4. CORS and preview deployment URLs
+
+Vercel creates a unique URL for every deployment (e.g. `ygo-binder-abc123-bikramveers-projects.vercel.app`). The production URL is stable (`ygobinder.vercel.app`).
+
+**What happened:** Testing from a preview URL. Railway's CORS only whitelists the production URL stored in `FRONTEND_URL`. Browser blocked the request.
+
+**Fix:** Always test from the production URL (Vercel → Settings → Domains). CORS errors are always about origin mismatch — read the error message carefully, it tells you exactly what origin was sent vs. what was expected.
+
+---
+
+### Bugs Fixed After Launch
+
+#### `entry_key` missing from database
+
+This column was added to the schema mid-development to solve a problem: the frontend identifies cards by a composite key (`${cardId}-${setCode}-${rarityCode}`) but the backend only stored the full rarity name (e.g. "Ultra Rare"), not the short code ("UR"). Without storing the frontend key explicitly, there was no way to reconstruct it from the backend.
+
+The Railway database was set up before this column was added. Every INSERT into `collection_entries` and `toget_entries` was failing with a NOT NULL violation and rolling back.
+
+**Fix:** Drop and recreate the affected tables using the current `schema.sql`, which includes `entry_key`. Since there was no real data yet, this was safe.
+
+**Lesson:** When you change a schema mid-development, you need a migration. Future schema changes should be accompanied by a SQL migration file (e.g. `migrations/002_add_entry_key.sql`).
+
+---
+
+#### `sync.ts` wrong conflict targets
+
+The sync route — which imports guest localStorage data on first login — had two bugs in its INSERT statements:
+
+1. Missing `entry_key` column in the INSERT → NOT NULL violation → entire transaction rolled back
+2. `ON CONFLICT (user_id, card_id, set_code, rarity, condition)` — these columns don't form a UNIQUE constraint. The actual constraint is `(user_id, entry_key, condition)`. PostgreSQL requires the conflict target to exactly match a unique constraint.
+
+Also, `api.ts` wasn't sending `entryKey` in the sync payload, so even with a fixed INSERT the value would be missing.
+
+**Fix:** Added `entry_key` to both INSERTs, corrected conflict targets, added `entryKey: entry.id` to the sync payload in `api.ts`.
+
+---
+
+#### Binders persisting across login/logout
+
+When a user logged in, binders were being carried over from localStorage even if they clicked "Discard" on the sync prompt. Root cause: `loadFromApi()` was dispatching `binders: stateRef.current.binders` instead of `binders: []`.
+
+**Fix:** `loadFromApi()` always sets `binders: []`. If the user clicks Import, `localSnapshot.binders` is restored. If they click Discard, binders stay empty — correct "start fresh" behavior.
+
+---
+
+#### Resend free tier limitation
+
+Resend's free tier only allows sending emails to the address used to sign up for Resend. Attempting to send to any other address returns a 403.
+
+**This is expected behavior** — Resend requires domain verification before you can send to arbitrary recipients.
+
+**What you need to do before launch:** Verify a domain you own in Resend (add a few DNS records). Once verified, you can send to anyone. Resend walks you through it in their dashboard.
+
+---
+
+## 5. What's Left to Build
+
+| Phase | Feature | Notes |
+|---|---|---|
+| 6 | Price history | Daily price snapshots stored in DB. Requires a cron job on the backend to fetch prices for all tracked cards. |
+| 7 | Binder backend sync | Binders currently local-only. Need binder CRUD routes wired to `CollectionContext` the same way collection/toGet are. |
+| 8 | Mobile app | React Native, shares the Phase 5 backend. |
+| — | Google OAuth | Deferred — user wants to implement to learn it. |
+| — | Resend domain verification | Required before sending emails to real users. |
+| — | Est. Value stat on Dashboard | Needs bulk price fetching in the backend. |
+| — | Deferred design | Binder book layout, page-turn animations, app-wide animation pass. |
+
+---
+
+## 6. Key Technical Decisions
 
 | Decision | Choice | Why |
 |---|---|---|
@@ -349,7 +497,7 @@ EMAIL_API_KEY=  Brevo or Resend API key for sending OTP emails
 
 ---
 
-## 5. Learning Resources
+## 7. Learning Resources
 
 Deep-dives for topics introduced in this project:
 
