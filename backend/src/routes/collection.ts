@@ -11,6 +11,7 @@ router.use(requireAuth);
 const ConditionEnum = z.enum(['NM', 'LP', 'MP', 'HP', 'DMG']);
 
 const EntrySchema = z.object({
+  entryKey: z.string().min(1).max(255),
   cardId: z.number().int().positive(),
   cardName: z.string().min(1).max(255),
   cardImageUrl: z.string().url(),
@@ -52,17 +53,17 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { cardId, cardName, cardImageUrl, setName, setCode, rarity, condition, quantity } = parsed.data;
+  const { entryKey, cardId, cardName, cardImageUrl, setName, setCode, rarity, condition, quantity } = parsed.data;
 
   try {
     const result = await pool.query(
       `INSERT INTO collection_entries
-         (user_id, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (user_id, card_id, set_code, rarity, condition)
+         (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (user_id, entry_key, condition)
        DO UPDATE SET quantity = collection_entries.quantity + EXCLUDED.quantity
        RETURNING *`,
-      [req.user!.userId, cardId, cardName, cardImageUrl, setName, setCode, rarity, condition, quantity]
+      [req.user!.userId, entryKey, cardId, cardName, cardImageUrl, setName, setCode, rarity, condition, quantity]
     );
 
     res.status(201).json({ entry: result.rows[0] });
