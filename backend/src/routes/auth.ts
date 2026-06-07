@@ -114,7 +114,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
 
   try {
     const userResult = await pool.query(
-      'SELECT id FROM users WHERE email = $1',
+      'SELECT id, preferred_currency FROM users WHERE email = $1',
       [email]
     );
     if (userResult.rows.length === 0) {
@@ -123,6 +123,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
     }
 
     const userId: number = userResult.rows[0].id;
+    const preferred_currency: string = userResult.rows[0].preferred_currency;
 
     const otpResult = await pool.query(
       `SELECT id FROM email_otps
@@ -146,7 +147,7 @@ router.post('/verify-email', async (req: Request, res: Response) => {
     const refreshToken = await createRefreshToken(userId);
     setRefreshCookie(res, refreshToken);
 
-    res.json({ token: accessToken, user: { id: userId, email } });
+    res.json({ token: accessToken, user: { id: userId, email, preferred_currency } });
   } catch (err) {
     console.error('Verify email error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
@@ -165,7 +166,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      'SELECT id, email, password_hash, email_verified FROM users WHERE email = $1',
+      'SELECT id, email, password_hash, email_verified, preferred_currency FROM users WHERE email = $1',
       [email]
     );
 
@@ -191,7 +192,7 @@ router.post('/login', async (req: Request, res: Response) => {
     const refreshToken = await createRefreshToken(user.id);
     setRefreshCookie(res, refreshToken);
 
-    res.json({ token: accessToken, user: { id: user.id, email: user.email } });
+    res.json({ token: accessToken, user: { id: user.id, email: user.email, preferred_currency: user.preferred_currency } });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
