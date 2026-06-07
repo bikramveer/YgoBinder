@@ -124,6 +124,7 @@ export interface Binder {
   cols: number; // 1–4
   rows: number; // 1–4
   pages: BinderPage[]; // max 20
+  coverUrl?: string;
   createdAt: string;
 }
 

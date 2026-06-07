@@ -128,3 +128,6 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NU
 ALTER TABLE binder_slots DROP COLUMN IF EXISTS entry_id;
 ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS entry_key VARCHAR(255);
 ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS source VARCHAR(20) CHECK (source IN ('collection', 'toGet'));
+
+-- Binder cover image URL
+ALTER TABLE binders ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500);

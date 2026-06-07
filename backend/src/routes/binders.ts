@@ -16,10 +16,12 @@ const CreateBinderSchema = z.object({
   cols: z.number().int().min(1).max(4),
   rows: z.number().int().min(1).max(4),
   pageCount: z.number().int().min(1).max(20).default(1),
+  coverUrl: z.string().url().max(500).optional().nullable(),
 });
 
-const RenameBinderSchema = z.object({
-  name: z.string().min(1).max(255),
+const UpdateBinderSchema = z.object({
+  name: z.string().min(1).max(255).optional(),
+  coverUrl: z.string().url().max(500).optional().nullable(),
 });
 
 const SlotSchema = z.object({
@@ -80,6 +82,7 @@ async function fetchBinders(userId: number): Promise<Binder[]> {
     name: b.name,
     cols: b.cols,
     rows: b.rows,
+    cover_url: b.cover_url ?? null,
     created_at: b.created_at,
     pages: pagesByBinder.get(b.id) ?? [],
   }));
@@ -106,15 +109,15 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { name, cols, rows, pageCount } = parsed.data;
+  const { name, cols, rows, pageCount, coverUrl } = parsed.data;
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
     const binderResult = await client.query(
-      'INSERT INTO binders (user_id, name, cols, rows) VALUES ($1, $2, $3, $4) RETURNING *',
-      [req.user!.userId, name, cols, rows]
+      'INSERT INTO binders (user_id, name, cols, rows, cover_url) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [req.user!.userId, name, cols, rows, coverUrl ?? null]
     );
 
     const binder = binderResult.rows[0];
@@ -141,18 +144,30 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /binders/:id — rename
+// PUT /binders/:id — update name and/or cover
 router.put('/:id', async (req: Request, res: Response) => {
-  const parsed = RenameBinderSchema.safeParse(req.body);
+  const parsed = UpdateBinderSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 
+  const { name, coverUrl } = parsed.data;
+  if (name === undefined && coverUrl === undefined) {
+    res.status(400).json({ error: 'Provide name or coverUrl to update.' });
+    return;
+  }
+
   try {
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    if (name !== undefined) { sets.push(`name = $${sets.length + 1}`); values.push(name); }
+    if (coverUrl !== undefined) { sets.push(`cover_url = $${sets.length + 1}`); values.push(coverUrl); }
+    values.push(req.params.id, req.user!.userId);
+
     const result = await pool.query(
-      'UPDATE binders SET name = $1 WHERE id = $2 AND user_id = $3 RETURNING *',
-      [parsed.data.name, req.params.id, req.user!.userId]
+      `UPDATE binders SET ${sets.join(', ')} WHERE id = $${values.length - 1} AND user_id = $${values.length} RETURNING *`,
+      values
     );
 
     if (result.rows.length === 0) {
@@ -162,7 +177,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     res.json({ binder: result.rows[0] });
   } catch (err) {
-    console.error('Rename binder error:', err);
+    console.error('Update binder error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });

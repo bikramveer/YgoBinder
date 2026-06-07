@@ -4,6 +4,7 @@ import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
+import { BinderCoverPicker } from '../components/Binder/BinderCoverPicker';
 import type { Binder, BinderPage, BinderSlot, Condition } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
@@ -12,6 +13,7 @@ import './BinderPage.css';
 type ModalState =
   | { kind: 'create' }
   | { kind: 'rename'; binderId: string }
+  | { kind: 'cover'; binderId: string }
   | { kind: 'delete'; binderId: string; binderName: string }
   | { kind: 'picker'; pageId: string; slotIndex: number }
   | { kind: 'card'; pageId: string; slotIndex: number; slotData: ResolvedSlotData }
@@ -32,8 +34,8 @@ export function BinderPage() {
   const [nameInput, setNameInput] = useState('');
   const [newCols, setNewCols] = useState(DEFAULT_BINDER_COLS);
   const [newRows, setNewRows] = useState(DEFAULT_BINDER_ROWS);
+  const [coverInput, setCoverInput] = useState<string | null>(null);
 
-  // Drag state — tracks source and hover target across both pages in a spread
   const [dragSource, setDragSource] = useState<{ pageId: string; slotIndex: number } | null>(null);
   const [dragOver, setDragOver] = useState<{ pageId: string; slotIndex: number } | null>(null);
 
@@ -43,16 +45,27 @@ export function BinderPage() {
     null;
 
   // ── Spread calculations ────────────────────────────────────────────────────
+  // Spread 0: cover (left) + pages[0] (right)
+  // Spread n (n≥1): pages[2n-1] (left) + pages[2n] (right)
 
-  const totalPages = binder?.pages.length ?? 0;
-  const spreadCount = Math.max(1, Math.ceil(totalPages / 2));
+  const totalCardPages = binder?.pages.length ?? 0;
+  const spreadCount = 1 + Math.ceil(Math.max(0, totalCardPages - 1) / 2);
   const maxSpreadIndex = spreadCount - 1;
   const safeSpreadIndex = Math.min(displayedSpreadIndex, maxSpreadIndex);
 
-  const leftPage: BinderPage | null = binder?.pages[safeSpreadIndex * 2] ?? null;
-  const rightPage: BinderPage | null = binder?.pages[safeSpreadIndex * 2 + 1] ?? null;
+  function getLeftPage(spreadIdx: number): BinderPage | null {
+    if (spreadIdx === 0 || !binder) return null; // cover shown via JSX
+    return binder.pages[spreadIdx * 2 - 1] ?? null;
+  }
 
-  const isSinglePage = totalPages <= 1;
+  function getRightPage(spreadIdx: number): BinderPage | null {
+    if (!binder) return null;
+    return binder.pages[spreadIdx * 2] ?? null;
+  }
+
+  const isSpread0 = safeSpreadIndex === 0;
+  const leftPage = getLeftPage(safeSpreadIndex);
+  const rightPage = getRightPage(safeSpreadIndex);
 
   function resolveSlot(slot: BinderSlot | null): ResolvedSlotData | null {
     if (!slot) return null;
@@ -100,7 +113,6 @@ export function BinderPage() {
 
   const spreadClass = [
     'binder-spread',
-    isSinglePage ? 'binder-spread--single' : '',
     animState === 'out' ? `binder-spread--flip-out-${flipDir}` : '',
     animState === 'in' ? `binder-spread--flip-in-${flipDir}` : '',
   ].filter(Boolean).join(' ');
@@ -111,16 +123,15 @@ export function BinderPage() {
     setNameInput('');
     setNewCols(DEFAULT_BINDER_COLS);
     setNewRows(DEFAULT_BINDER_ROWS);
+    setCoverInput(null);
     setModal({ kind: 'create' });
   };
 
   const confirmCreate = async () => {
     if (!nameInput.trim()) return;
-    const newBinder = await createBinder(nameInput.trim(), newCols, newRows);
+    const newBinder = await createBinder(nameInput.trim(), newCols, newRows, coverInput ?? undefined);
     if (newBinder) {
       setSelectedBinderId(newBinder.id);
-      // Add a second page to start as a full spread
-      await addBinderPage(newBinder.id, newCols * newRows);
       setDisplayedSpreadIndex(0);
     }
     setModal(null);
@@ -135,6 +146,18 @@ export function BinderPage() {
   const confirmRename = () => {
     if (modal?.kind !== 'rename' || !nameInput.trim()) return;
     dispatch({ type: 'RENAME_BINDER', binderId: modal.binderId, name: nameInput.trim() });
+    setModal(null);
+  };
+
+  const openCover = () => {
+    if (!binder) return;
+    setCoverInput(binder.coverUrl ?? null);
+    setModal({ kind: 'cover', binderId: binder.id });
+  };
+
+  const confirmCover = () => {
+    if (modal?.kind !== 'cover') return;
+    dispatch({ type: 'SET_BINDER_COVER', binderId: modal.binderId, coverUrl: coverInput });
     setModal(null);
   };
 
@@ -180,7 +203,7 @@ export function BinderPage() {
     if (!binder || binder.pages.length <= 1) return;
     dispatch({ type: 'REMOVE_BINDER_PAGE', binderId: binder.id, pageId });
     const newTotal = binder.pages.length - 1;
-    const newMax = Math.max(0, Math.ceil(newTotal / 2) - 1);
+    const newMax = Math.max(0, Math.ceil(Math.max(0, newTotal - 1) / 2));
     setDisplayedSpreadIndex((i) => Math.min(i, newMax));
     setModal(null);
   };
@@ -267,18 +290,6 @@ export function BinderPage() {
     setDragOver(null);
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
-
-  const activeSpreadIndex = pendingSpreadIndex ?? safeSpreadIndex;
-
-  const pageLabel = isSinglePage
-    ? `Page 1 of ${totalPages}`
-    : (() => {
-        const l = activeSpreadIndex * 2 + 1;
-        const r = Math.min(activeSpreadIndex * 2 + 2, totalPages);
-        return l === r ? `Page ${l} of ${totalPages}` : `Pages ${l}–${r} of ${totalPages}`;
-      })();
-
   function makeGridProps(page: BinderPage | null, pageId: string | undefined) {
     return {
       cols: binder!.cols,
@@ -294,6 +305,19 @@ export function BinderPage() {
       onDragEnd: handleDragEnd,
     };
   }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const activeSpreadIndex = pendingSpreadIndex ?? safeSpreadIndex;
+
+  const pageLabel = (() => {
+    if (activeSpreadIndex === 0) {
+      return totalCardPages > 0 ? `Cover + Page 1 of ${totalCardPages}` : 'Cover';
+    }
+    const l = activeSpreadIndex * 2;
+    const r = Math.min(activeSpreadIndex * 2 + 1, totalCardPages);
+    return l === r ? `Page ${l} of ${totalCardPages}` : `Pages ${l}–${r} of ${totalCardPages}`;
+  })();
 
   return (
     <main className="page">
@@ -330,6 +354,7 @@ export function BinderPage() {
           {binder && (
             <>
               <button className="btn btn-ghost" onClick={openRename}>Rename</button>
+              <button className="btn btn-ghost" onClick={openCover}>Cover</button>
               <button className="btn btn-danger" onClick={openDelete}>Delete</button>
             </>
           )}
@@ -389,24 +414,38 @@ export function BinderPage() {
           {/* Spread view */}
           <div className="binder-spread-wrapper">
             <div className={spreadClass} onAnimationEnd={handleAnimEnd}>
-              {isSinglePage ? (
-                <div className="binder-spread__page binder-spread__page--center">
-                  {leftPage && <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />}
+              {/* Left side */}
+              {isSpread0 ? (
+                <div className="binder-spread__page binder-spread__page--left">
+                  <div className="binder-cover">
+                    {binder.coverUrl ? (
+                      <img src={binder.coverUrl} alt="Binder cover" className="binder-cover__img" />
+                    ) : (
+                      <div className="binder-cover__title">
+                        <span className="binder-cover__name">{binder.name}</span>
+                        <span className="binder-cover__sub">{binder.cols}×{binder.rows}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
-                <>
-                  <div className="binder-spread__page binder-spread__page--left">
-                    {leftPage && <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />}
-                  </div>
-                  <div className="binder-spread__spine" />
-                  <div className="binder-spread__page binder-spread__page--right">
-                    {rightPage
-                      ? <BinderPageGrid {...makeGridProps(rightPage, rightPage.id)} />
-                      : <div className="binder-spread__empty-page" />
-                    }
-                  </div>
-                </>
+                <div className="binder-spread__page binder-spread__page--left">
+                  {leftPage
+                    ? <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />
+                    : <div className="binder-spread__empty-page" />
+                  }
+                </div>
               )}
+
+              <div className="binder-spread__spine" />
+
+              {/* Right side — always a card page */}
+              <div className="binder-spread__page binder-spread__page--right">
+                {rightPage
+                  ? <BinderPageGrid {...makeGridProps(rightPage, rightPage.id)} />
+                  : <div className="binder-spread__empty-page" />
+                }
+              </div>
             </div>
           </div>
         </>
@@ -416,7 +455,7 @@ export function BinderPage() {
 
       {modal?.kind === 'create' && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>New Binder</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -438,6 +477,11 @@ export function BinderPage() {
                   rows={newRows}
                   onChange={(c, r) => { setNewCols(c); setNewRows(r); }}
                 />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cover image (optional)</span>
+                <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -469,6 +513,19 @@ export function BinderPage() {
                   Rename
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.kind === 'cover' && (
+        <div className="modal-backdrop" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Change Cover</h2>
+            <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={confirmCover}>Save</button>
             </div>
           </div>
         </div>

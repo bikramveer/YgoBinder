@@ -32,6 +32,8 @@ export function LandingPage() {
   const navigate = useNavigate();
   const [authOpen, setAuthOpen] = useState(false);
 
+  const enterApp = () => navigate('/search');
+
   useEffect(() => {
     if (!isLoading && isLoggedIn) {
       navigate('/dashboard', { replace: true });
@@ -60,8 +62,8 @@ export function LandingPage() {
           Search cards, track your collection, build virtual binders, and follow market prices — all in one place.
         </p>
         <div className="landing__cta">
-          <button className="btn btn-primary landing__cta-btn" onClick={() => setAuthOpen(true)}>
-            Get started — it's free
+          <button className="btn btn-primary landing__cta-btn" onClick={enterApp}>
+            Start your collection →
           </button>
         </div>
       </section>
