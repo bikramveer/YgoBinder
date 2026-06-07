@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import pool from '../db';
 import { requireAuth } from '../middleware/auth';
+import { runPriceSync } from '../services/priceSync';
 
 const router = Router();
 
@@ -74,6 +75,12 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
     console.error('Price history error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
+});
+
+// POST /prices/sync — manual trigger for testing, remove before public launch
+router.post('/sync', requireAuth, async (_req: Request, res: Response) => {
+  res.json({ message: 'Price sync started. Check server logs for progress.' });
+  runPriceSync().catch((err) => console.error('Manual sync error:', err));
 });
 
 export default router;
