@@ -50,10 +50,13 @@ async function createRefreshToken(userId: number): Promise<string> {
 }
 
 function setRefreshCookie(res: Response, token: string): void {
+  const isProduction = process.env.NODE_ENV === 'production';
   res.cookie('refresh_token', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProduction,
+    // 'none' is required for cross-origin cookies (Vercel → Railway).
+    // 'lax' in dev avoids the Secure requirement on http://localhost.
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 30 * 24 * 60 * 60 * 1000,
     path: '/auth',
   });

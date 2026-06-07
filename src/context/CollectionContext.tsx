@@ -521,6 +521,8 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
         binderApi.fetchAll(),
       ]);
       dispatch({ type: 'LOAD_STATE', state: { collection, toGet, binders } });
+      // Clear localStorage so logout returns to a clean guest state
+      saveState({ collection: [], toGet: [], binders: [] });
     } catch (err) {
       console.error('Import failed:', err);
     } finally {
@@ -576,6 +578,8 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
   }, [isLoggedIn]);
 
   const dismissSyncPrompt = useCallback(() => {
+    // Clear localStorage so logout returns to a clean guest state
+    saveState({ collection: [], toGet: [], binders: [] });
     setShowSyncPrompt(false);
     setLocalSnapshot(null);
   }, []);
