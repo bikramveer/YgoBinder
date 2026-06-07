@@ -1,0 +1,24 @@
+.price-chart {
+  padding: 0.75rem 0.5rem 0.25rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+}
+
+.price-chart--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.price-chart__svg {
+  display: block;
+  overflow: visible;
+}
+
+.price-chart__dot {
+  cursor: pointer;
+  transition: r 0.1s;
+}

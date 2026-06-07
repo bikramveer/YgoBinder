@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useCardDetail } from '../../hooks/useCardDetail';
 import { useCollection } from '../../context/CollectionContext';
+import { useAuth } from '../../context/AuthContext';
 import { getCardTypeColor, getCardTypeLabel } from '../../utils/cardTypeColors';
-import { CONDITION_ORDER, CONDITION_LABELS } from '../../types';
+import { CONDITION_ORDER, CONDITION_LABELS, formatPrice } from '../../types';
 import type { YGOCard, YGOCardSet, Condition } from '../../types';
+import { pricesApi } from '../../services/api';
+import type { PricePoint } from '../../services/api';
+import { PriceChart } from './PriceChart';
 import './CardDetailModal.css';
 
 interface Props {
@@ -20,30 +24,38 @@ interface AddState {
 }
 
 function makeEntryId(cardId: number, set: YGOCardSet): string {
-  // Include rarity code so two rarities from the same set code are separate entries.
   return `${cardId}-${set.set_code}-${set.set_rarity_code}`;
-}
-
-function formatPrice(priceStr: string): string {
-  const n = parseFloat(priceStr);
-  if (!n || n === 0) return '';
-  return `$${n.toFixed(2)}`;
 }
 
 export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const { card, loading, fetchCard } = useCardDetail();
   const { state, dispatch } = useCollection();
+  const { preferredCurrency, isLoggedIn } = useAuth();
 
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [setFilter, setSetFilter] = useState('');
   const [addState, setAddState] = useState<AddState | null>(null);
+
+  // Exchange rates — fetched once per modal open, used to convert prices in the table
+  const [rates, setRates] = useState<Record<string, number>>({});
+
+  // Price history chart state
+  const [expandedSet, setExpandedSet] = useState<string | null>(null);
+  const [historyMap, setHistoryMap] = useState<Record<string, PricePoint[]>>({});
+  const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (cardId !== null) fetchCard(cardId);
     setSelectedImageIdx(0);
     setSetFilter('');
     setAddState(null);
+    setExpandedSet(null);
   }, [cardId, fetchCard]);
+
+  // Fetch exchange rates on open — public endpoint, works for guests too
+  useEffect(() => {
+    pricesApi.getLatestRates().then(setRates).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -56,10 +68,36 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, addState]);
 
-  // Header uses initialCard immediately so the name/image shows before the API resolves.
-  // Sets table uses only the full API response so the filter always has complete data.
+  const toggleHistory = useCallback(async (set: YGOCardSet, cardIdNum: number) => {
+    const key = `${set.set_code}|${set.set_rarity}`;
+
+    // Collapse if already open
+    if (expandedSet === key) {
+      setExpandedSet(null);
+      return;
+    }
+
+    setExpandedSet(key);
+
+    // Only logged-in users can fetch history (endpoint requires auth)
+    if (!isLoggedIn) return;
+
+    // Use cached data if already fetched
+    if (historyMap[key] !== undefined) return;
+
+    setHistoryLoading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const data = await pricesApi.getHistory(cardIdNum, set.set_code, set.set_rarity);
+      setHistoryMap((prev) => ({ ...prev, [key]: data }));
+    } catch {
+      setHistoryMap((prev) => ({ ...prev, [key]: [] }));
+    } finally {
+      setHistoryLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  }, [expandedSet, historyMap, isLoggedIn]);
+
   const headerCard = card ?? initialCard ?? null;
-  const fullSets = card?.card_sets ?? null; // null = still loading
+  const fullSets = card?.card_sets ?? null;
 
   const typeColor = headerCard ? getCardTypeColor(headerCard.frameType) : { bg: '#555', text: '#fff' };
   const typeLabel = headerCard ? getCardTypeLabel(headerCard.type, headerCard.frameType) : '';
@@ -129,7 +167,6 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
         <button className="card-detail__close" onClick={onClose} aria-label="Close">✕</button>
 
         <div className="card-detail">
-          {/* Spinner only when we have no header data at all */}
           {!headerCard && (
             <div className="spinner-center"><div className="spinner" /></div>
           )}
@@ -199,8 +236,10 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                   <div className="card-detail__add-set-info">
                     <strong>{addState.set.set_name}</strong>
                     {addState.set.set_code} · {addState.set.set_rarity}
-                    {formatPrice(addState.set.set_price) && (
-                      <> · <span style={{ color: 'var(--accent)' }}>{formatPrice(addState.set.set_price)}</span></>
+                    {parseFloat(addState.set.set_price) > 0 && (
+                      <> · <span style={{ color: 'var(--accent)' }}>
+                        {formatPrice(parseFloat(addState.set.set_price), preferredCurrency, rates)}
+                      </span></>
                     )}
                   </div>
 
@@ -240,19 +279,17 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                 </div>
               )}
 
-              {/* ── Set printings table (only when add form is not open) ── */}
+              {/* ── Set printings table ── */}
               {!addState && (
                 <>
                   <div className="card-detail__section-title">Set Printings</div>
 
-                  {/* Spinner while the detail API call resolves */}
                   {loading && !card && (
                     <div className="spinner-center" style={{ padding: '1rem' }}>
                       <div className="spinner" />
                     </div>
                   )}
 
-                  {/* Sets loaded */}
                   {fullSets !== null && (
                     fullSets.length > 0 ? (
                       <>
@@ -279,39 +316,77 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                 const entryId = makeEntryId(headerCard.id, set);
                                 const inCollection = state.collection.some((e) => e.id === entryId);
                                 const inToGet = state.toGet.some((e) => e.id === entryId);
-                                const price = formatPrice(set.set_price);
+                                const priceUsd = parseFloat(set.set_price);
+                                const hasPrice = priceUsd > 0;
+                                const historyKey = `${set.set_code}|${set.set_rarity}`;
+                                const isExpanded = expandedSet === historyKey;
 
                                 return (
-                                  <tr key={`${set.set_code}-${set.set_rarity_code}`}>
-                                    <td>{set.set_name}</td>
-                                    <td style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                      {set.set_code}
-                                    </td>
-                                    <td>{set.set_rarity}</td>
-                                    <td>
-                                      {price
-                                        ? <span className="card-detail__price">{price}</span>
-                                        : <span className="card-detail__price--none">—</span>
-                                      }
-                                    </td>
-                                    <td>
-                                      <div className="card-detail__set-actions">
-                                        <button
-                                          className={`btn ${inCollection ? 'btn-ghost' : 'btn-primary'}`}
-                                          onClick={() => openAddForm(set, 'collection')}
-                                        >
-                                          {inCollection ? '✓ Owned' : '+ Collection'}
-                                        </button>
-                                        <button
-                                          className="btn btn-ghost"
-                                          style={inToGet ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
-                                          onClick={() => openAddForm(set, 'toget')}
-                                        >
-                                          {inToGet ? '✓ To Get' : '+ To Get'}
-                                        </button>
-                                      </div>
-                                    </td>
-                                  </tr>
+                                  <>
+                                    <tr key={`${set.set_code}-${set.set_rarity_code}`}>
+                                      <td>{set.set_name}</td>
+                                      <td style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                        {set.set_code}
+                                      </td>
+                                      <td>{set.set_rarity}</td>
+                                      <td>
+                                        <div className="card-detail__price-cell">
+                                          {hasPrice ? (
+                                            <>
+                                              <span className="card-detail__price">
+                                                {formatPrice(priceUsd, preferredCurrency, rates)}
+                                              </span>
+                                              <button
+                                                className={`card-detail__history-btn${isExpanded ? ' card-detail__history-btn--active' : ''}`}
+                                                onClick={() => void toggleHistory(set, headerCard.id)}
+                                                title="Price history"
+                                              >
+                                                ↗
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <span className="card-detail__price--none">—</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td>
+                                        <div className="card-detail__set-actions">
+                                          <button
+                                            className={`btn ${inCollection ? 'btn-ghost' : 'btn-primary'}`}
+                                            onClick={() => openAddForm(set, 'collection')}
+                                          >
+                                            {inCollection ? '✓ Owned' : '+ Collection'}
+                                          </button>
+                                          <button
+                                            className="btn btn-ghost"
+                                            style={inToGet ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
+                                            onClick={() => openAddForm(set, 'toget')}
+                                          >
+                                            {inToGet ? '✓ To Get' : '+ To Get'}
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+
+                                    {/* Price history chart row */}
+                                    {isExpanded && (
+                                      <tr key={`${historyKey}-chart`} className="card-detail__chart-row">
+                                        <td colSpan={5}>
+                                          {!isLoggedIn ? (
+                                            <div className="card-detail__chart-guest">
+                                              Sign in to see price history.
+                                            </div>
+                                          ) : (
+                                            <PriceChart
+                                              history={historyMap[historyKey] ?? []}
+                                              currency={preferredCurrency}
+                                              loading={historyLoading[historyKey] ?? false}
+                                            />
+                                          )}
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </>
                                 );
                               })}
                               {filteredSets.length === 0 && (
