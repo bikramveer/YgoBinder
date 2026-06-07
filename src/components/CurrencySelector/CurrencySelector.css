@@ -1,0 +1,16 @@
+.currency-selector {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 0.25rem 0.4rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.currency-selector:hover,
+.currency-selector:focus {
+  border-color: var(--accent);
+  outline: none;
+}

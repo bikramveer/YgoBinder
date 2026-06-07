@@ -1,9 +1,14 @@
 export type Condition = 'NM' | 'LP' | 'MP' | 'HP' | 'DMG';
 
+export type CurrencyCode = 'USD' | 'CAD' | 'EUR' | 'GBP' | 'AUD' | 'JPY';
+
+export const SUPPORTED_CURRENCIES: CurrencyCode[] = ['USD', 'CAD', 'EUR', 'GBP', 'AUD', 'JPY'];
+
 export interface User {
   id: number;
   email: string;
   email_verified: boolean;
+  preferred_currency: CurrencyCode;
   created_at: string;
 }
 

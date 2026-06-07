@@ -92,9 +92,35 @@ CREATE TABLE IF NOT EXISTS binder_slots (
   UNIQUE (page_id, position)
 );
 
+-- Price history — one USD price snapshot per (card, set, rarity) per day
+CREATE TABLE IF NOT EXISTS price_history (
+  id           SERIAL PRIMARY KEY,
+  card_id      INTEGER NOT NULL,
+  set_code     VARCHAR(100) NOT NULL,
+  rarity       VARCHAR(100) NOT NULL,
+  price_usd    NUMERIC(10, 2),
+  recorded_at  DATE NOT NULL DEFAULT CURRENT_DATE,
+  UNIQUE (card_id, set_code, rarity, recorded_at)
+);
+
+-- Daily exchange rates from USD (sourced from Frankfurter / ECB)
+CREATE TABLE IF NOT EXISTS exchange_rates (
+  id           SERIAL PRIMARY KEY,
+  currency     VARCHAR(10) NOT NULL,
+  rate         NUMERIC(12, 6) NOT NULL,
+  recorded_at  DATE NOT NULL DEFAULT CURRENT_DATE,
+  UNIQUE (currency, recorded_at)
+);
+
 -- Index for fast per-user lookups
 CREATE INDEX IF NOT EXISTS idx_collection_user ON collection_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_toget_user ON toget_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_binders_user ON binders(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_otps_user ON email_otps(user_id);
+CREATE INDEX IF NOT EXISTS idx_price_history_lookup ON price_history(card_id, set_code, rarity);
+
+-- User preferred currency (add to existing users table)
+-- Run this manually if upgrading an existing database:
+-- ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'USD';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'USD';

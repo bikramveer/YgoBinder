@@ -163,6 +163,7 @@ function rowToToGet(row: BackendToGetRow): ToGetEntry {
 export interface AuthUser {
   id: number;
   email: string;
+  preferred_currency: string;
 }
 
 export const authApi = {
@@ -211,6 +212,16 @@ export const authApi = {
 
   async logout(): Promise<void> {
     await fetch(`${BASE_URL}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+  },
+
+  async updateSettings(preferredCurrency: string): Promise<AuthUser> {
+    const res = await apiFetch('/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify({ preferredCurrency }),
+    });
+    if (!res.ok) throw new Error('Failed to update settings.');
+    const body = (await res.json()) as { user: AuthUser };
+    return body.user;
   },
 };
 
@@ -328,6 +339,41 @@ export const toGetApi = {
     const body = (await res.json()) as { removed: boolean };
     if (body.removed) toGetCache.delete(entryId);
     return body;
+  },
+};
+
+// ── Prices API ────────────────────────────────────────────────────────────────
+
+export interface PricePoint {
+  date: string;
+  price_usd: number;
+  rates: Record<string, number>;
+}
+
+export const pricesApi = {
+  async getHistory(
+    cardId: number,
+    setCode: string,
+    rarity: string,
+    days = 90,
+  ): Promise<PricePoint[]> {
+    const params = new URLSearchParams({
+      cardId: String(cardId),
+      setCode,
+      rarity,
+      days: String(days),
+    });
+    const res = await apiFetch(`/prices?${params}`);
+    if (!res.ok) return [];
+    const body = (await res.json()) as { history: PricePoint[] };
+    return body.history;
+  },
+
+  async getLatestRates(): Promise<Record<string, number>> {
+    const res = await fetch(`${BASE_URL}/prices/rates`);
+    if (!res.ok) return {};
+    const body = (await res.json()) as { rates: Record<string, number> };
+    return body.rates;
   },
 };
 

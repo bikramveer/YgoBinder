@@ -139,6 +139,34 @@ export interface PriceCacheEntry {
   expiresAt: number; // Unix ms — midnight of cache date
 }
 
+// ── Currency ──────────────────────────────────────────────────────────────────
+
+export type CurrencyCode = 'USD' | 'CAD' | 'EUR' | 'GBP' | 'AUD' | 'JPY';
+
+export const SUPPORTED_CURRENCIES: { code: CurrencyCode; label: string; symbol: string }[] = [
+  { code: 'USD', label: 'USD', symbol: '$' },
+  { code: 'CAD', label: 'CAD', symbol: '$' },
+  { code: 'EUR', label: 'EUR', symbol: '€' },
+  { code: 'GBP', label: 'GBP', symbol: '£' },
+  { code: 'AUD', label: 'AUD', symbol: '$' },
+  { code: 'JPY', label: 'JPY', symbol: '¥' },
+];
+
+export function formatPrice(
+  priceUsd: number,
+  currency: CurrencyCode,
+  rates: Record<string, number>,
+): string {
+  const rate = currency === 'USD' ? 1 : (rates[currency] ?? 1);
+  const converted = priceUsd * rate;
+  const info = SUPPORTED_CURRENCIES.find((c) => c.code === currency)!;
+
+  if (currency === 'JPY') {
+    return `${info.symbol}${Math.round(converted).toLocaleString()} ${currency}`;
+  }
+  return `${info.symbol}${converted.toFixed(2)} ${currency}`;
+}
+
 // ── UI helpers ────────────────────────────────────────────────────────────────
 
 export type ViewMode = 'grid' | 'list';
