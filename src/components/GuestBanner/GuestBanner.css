@@ -1,0 +1,33 @@
+.guest-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 1rem;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}
+
+.guest-banner__text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.guest-banner__action {
+  color: var(--accent);
+  font-size: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.guest-banner__action:hover { opacity: 0.8; }
+
+.guest-banner__close {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  padding: 0.2rem 0.4rem;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.guest-banner__close:hover { color: var(--text); }

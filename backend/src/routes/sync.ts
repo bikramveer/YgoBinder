@@ -11,6 +11,7 @@ router.use(requireAuth);
 const ConditionEnum = z.enum(['NM', 'LP', 'MP', 'HP', 'DMG']);
 
 const LocalEntrySchema = z.object({
+  entryKey: z.string().min(1).max(255),
   cardId: z.number().int().positive(),
   cardName: z.string().min(1).max(255),
   cardImageUrl: z.string().url(),
@@ -72,30 +73,28 @@ router.post('/', async (req: Request, res: Response) => {
     for (const entry of collection) {
       const result = await client.query(
         `INSERT INTO collection_entries
-           (user_id, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (user_id, card_id, set_code, rarity, condition) DO NOTHING
-         RETURNING id, card_id, set_code, rarity, condition`,
-        [userId, entry.cardId, entry.cardName, entry.cardImageUrl,
+           (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (user_id, entry_key, condition) DO NOTHING
+         RETURNING id, entry_key, condition`,
+        [userId, entry.entryKey, entry.cardId, entry.cardName, entry.cardImageUrl,
          entry.setName, entry.setCode, entry.rarity, entry.condition,
          entry.quantity, entry.dateAdded ?? new Date().toISOString()]
       );
 
       if (result.rows.length > 0) {
         const row = result.rows[0];
-        // Key matches how the frontend builds binder slot entryIds
-        const key = `${row.card_id}-${row.set_code}-${row.rarity}:${row.condition}`;
-        entryKeyToServerUUID.set(key, row.id);
+        entryKeyToServerUUID.set(`${row.entry_key}:${row.condition}`, row.id);
       }
     }
 
     // Also load any pre-existing entries so binder slots can resolve them
     const existingResult = await client.query(
-      'SELECT id, card_id, set_code, rarity, condition FROM collection_entries WHERE user_id = $1',
+      'SELECT id, entry_key, condition FROM collection_entries WHERE user_id = $1',
       [userId]
     );
     for (const row of existingResult.rows) {
-      const key = `${row.card_id}-${row.set_code}-${row.rarity}:${row.condition}`;
+      const key = `${row.entry_key}:${row.condition}`;
       if (!entryKeyToServerUUID.has(key)) {
         entryKeyToServerUUID.set(key, row.id);
       }
@@ -105,10 +104,10 @@ router.post('/', async (req: Request, res: Response) => {
     for (const entry of toGet) {
       await client.query(
         `INSERT INTO toget_entries
-           (user_id, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-         ON CONFLICT (user_id, card_id, set_code, rarity) DO NOTHING`,
-        [userId, entry.cardId, entry.cardName, entry.cardImageUrl,
+           (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (user_id, entry_key) DO NOTHING`,
+        [userId, entry.entryKey, entry.cardId, entry.cardName, entry.cardImageUrl,
          entry.setName, entry.setCode, entry.rarity, entry.condition,
          entry.quantity, entry.dateAdded ?? new Date().toISOString()]
       );

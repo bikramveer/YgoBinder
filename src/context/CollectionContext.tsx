@@ -439,14 +439,14 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
         toGetApi.fetchAll(),
       ]);
 
-      // Replace state with server data; preserve binders (not yet synced)
+      // Replace state with server data; binders are local-only until Phase 6
       dispatch({
         type: 'LOAD_STATE',
-        state: { collection, toGet, binders: stateRef.current.binders },
+        state: { collection, toGet, binders: [] },
       });
 
       // Offer to import local data if the user had anything saved as a guest
-      if (snapshot.collection.length > 0 || snapshot.toGet.length > 0) {
+      if (snapshot.collection.length > 0 || snapshot.toGet.length > 0 || snapshot.binders.length > 0) {
         setLocalSnapshot(snapshot);
         setShowSyncPrompt(true);
       }
@@ -490,7 +490,7 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
       ]);
       dispatch({
         type: 'LOAD_STATE',
-        state: { collection, toGet, binders: stateRef.current.binders },
+        state: { collection, toGet, binders: localSnapshot.binders },
       });
     } catch (err) {
       console.error('Import failed:', err);

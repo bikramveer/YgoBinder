@@ -3,6 +3,7 @@ import { AuthProvider } from './context/AuthContext';
 import { CollectionProvider } from './context/CollectionContext';
 import { Navbar } from './components/Navbar/Navbar';
 import { SyncPrompt } from './components/SyncPrompt/SyncPrompt';
+import { GuestBanner } from './components/GuestBanner/GuestBanner';
 import { DashboardPage } from './pages/DashboardPage';
 import { SearchPage } from './pages/SearchPage';
 import { CollectionPage } from './pages/CollectionPage';
@@ -15,6 +16,7 @@ export default function App() {
       <CollectionProvider>
         <BrowserRouter>
           <Navbar />
+          <GuestBanner />
           <SyncPrompt />
           <Routes>
             <Route path="/" element={<DashboardPage />} />

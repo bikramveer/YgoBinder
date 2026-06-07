@@ -341,6 +341,7 @@ export const syncApi = {
     // Transform frontend entries back to the flat shape the sync endpoint expects
     const flatCollection = collection.flatMap((entry) =>
       entry.copies.map((copy) => ({
+        entryKey: entry.id,
         cardId: entry.cardId,
         cardName: entry.cardName,
         cardImageUrl: entry.cardImageUrl,
@@ -354,6 +355,7 @@ export const syncApi = {
     );
 
     const flatToGet = toGet.map((entry) => ({
+      entryKey: entry.id,
       cardId: entry.cardId,
       cardName: entry.cardName,
       cardImageUrl: entry.cardImageUrl,
