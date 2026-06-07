@@ -13,6 +13,9 @@ import syncRouter from './routes/sync';
 
 const app = express();
 
+// Trust Railway's reverse proxy so rate limiting uses the real client IP
+app.set('trust proxy', 1);
+
 // Security headers (must be before other middleware)
 app.use(helmet());
 
