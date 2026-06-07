@@ -1,4 +1,4 @@
-import type { CollectionEntry, ToGetEntry, Condition, ConditionCopy } from '../types';
+import type { CollectionEntry, ToGetEntry, Condition, ConditionCopy, Binder, BinderPage, BinderSlot } from '../types';
 import { CONDITION_ORDER } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -377,12 +377,120 @@ export const pricesApi = {
   },
 };
 
+// ── Binder API ────────────────────────────────────────────────────────────────
+
+interface BackendBinder {
+  id: string;
+  name: string;
+  cols: number;
+  rows: number;
+  created_at: string;
+  pages: BackendBinderPage[];
+}
+
+interface BackendBinderPage {
+  id: string;
+  page_number: number;
+  slots: BackendBinderSlot[];
+}
+
+interface BackendBinderSlot {
+  position: number;
+  entry_key: string | null;
+  source: 'collection' | 'toGet' | null;
+  condition: Condition | null;
+}
+
+function backendPageToFrontend(page: BackendBinderPage, slotCount: number): BinderPage {
+  const slots: (BinderSlot | null)[] = Array(slotCount).fill(null);
+  for (const slot of page.slots) {
+    if (slot.entry_key && slot.source) {
+      slots[slot.position] = {
+        entryId: slot.entry_key,
+        source: slot.source,
+        condition: slot.condition ?? undefined,
+      };
+    }
+  }
+  return { id: page.id, slots };
+}
+
+function backendBinderToFrontend(b: BackendBinder): Binder {
+  const slotCount = b.cols * b.rows;
+  return {
+    id: b.id,
+    name: b.name,
+    cols: b.cols,
+    rows: b.rows,
+    createdAt: b.created_at,
+    pages: b.pages.map((p) => backendPageToFrontend(p, slotCount)),
+  };
+}
+
+export const binderApi = {
+  async fetchAll(): Promise<Binder[]> {
+    const res = await apiFetch('/binders');
+    if (!res.ok) throw new Error('Failed to load binders.');
+    const body = (await res.json()) as { binders: BackendBinder[] };
+    return body.binders.map(backendBinderToFrontend);
+  },
+
+  async create(name: string, cols: number, rows: number): Promise<Binder> {
+    const res = await apiFetch('/binders', {
+      method: 'POST',
+      body: JSON.stringify({ name, cols, rows, pageCount: 1 }),
+    });
+    if (!res.ok) throw new Error('Failed to create binder.');
+    const body = (await res.json()) as { binder: BackendBinder };
+    return backendBinderToFrontend(body.binder);
+  },
+
+  async rename(binderId: string, name: string): Promise<void> {
+    await apiFetch(`/binders/${binderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  async delete(binderId: string): Promise<void> {
+    await apiFetch(`/binders/${binderId}`, { method: 'DELETE' });
+  },
+
+  async addPage(binderId: string, slotCount: number): Promise<BinderPage> {
+    const res = await apiFetch(`/binders/${binderId}/pages`, { method: 'POST' });
+    if (!res.ok) throw new Error('Failed to add page.');
+    const body = (await res.json()) as { page: BackendBinderPage };
+    return backendPageToFrontend(body.page, slotCount);
+  },
+
+  async removePage(binderId: string, pageId: string): Promise<void> {
+    await apiFetch(`/binders/${binderId}/pages/${pageId}`, { method: 'DELETE' });
+  },
+
+  async setSlot(
+    binderId: string,
+    pageId: string,
+    position: number,
+    slot: BinderSlot | null,
+  ): Promise<void> {
+    await apiFetch(`/binders/${binderId}/pages/${pageId}/slots/${position}`, {
+      method: 'PUT',
+      body: JSON.stringify(
+        slot
+          ? { entryKey: slot.entryId, source: slot.source, condition: slot.condition ?? null }
+          : { entryKey: null, source: null, condition: null },
+      ),
+    });
+  },
+};
+
 // ── Sync API ──────────────────────────────────────────────────────────────────
 
 export const syncApi = {
   async importLocalData(
     collection: CollectionEntry[],
     toGet: ToGetEntry[],
+    binders: Binder[],
   ): Promise<void> {
     // Transform frontend entries back to the flat shape the sync endpoint expects
     const flatCollection = collection.flatMap((entry) =>
@@ -413,9 +521,23 @@ export const syncApi = {
       dateAdded: entry.dateAdded,
     }));
 
+    const serializedBinders = binders.map((b) => ({
+      id: b.id,
+      name: b.name,
+      cols: b.cols,
+      rows: b.rows,
+      pages: b.pages.map((p) => ({
+        slots: p.slots.map((s) =>
+          s
+            ? { entryId: s.entryId, source: s.source, condition: s.condition ?? null }
+            : { entryId: null, source: null, condition: null },
+        ),
+      })),
+    }));
+
     await apiFetch('/sync', {
       method: 'POST',
-      body: JSON.stringify({ collection: flatCollection, toGet: flatToGet, binders: [] }),
+      body: JSON.stringify({ collection: flatCollection, toGet: flatToGet, binders: serializedBinders }),
     });
   },
 };

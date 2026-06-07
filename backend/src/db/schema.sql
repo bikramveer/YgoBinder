@@ -82,12 +82,13 @@ CREATE TABLE IF NOT EXISTS binder_pages (
   UNIQUE (binder_id, page_number)
 );
 
--- Binder slots — each slot on a page can hold one collection entry + condition
+-- Binder slots — each slot on a page holds a planned card (collection or to-get)
 CREATE TABLE IF NOT EXISTS binder_slots (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   page_id     UUID NOT NULL REFERENCES binder_pages(id) ON DELETE CASCADE,
   position    INTEGER NOT NULL,
-  entry_id    UUID REFERENCES collection_entries(id) ON DELETE SET NULL,
+  entry_key   VARCHAR(255),
+  source      VARCHAR(20) CHECK (source IN ('collection', 'toGet')),
   condition   VARCHAR(10) CHECK (condition IN ('NM', 'LP', 'MP', 'HP', 'DMG')),
   UNIQUE (page_id, position)
 );
@@ -121,6 +122,9 @@ CREATE INDEX IF NOT EXISTS idx_otps_user ON email_otps(user_id);
 CREATE INDEX IF NOT EXISTS idx_price_history_lookup ON price_history(card_id, set_code, rarity);
 
 -- User preferred currency (add to existing users table)
--- Run this manually if upgrading an existing database:
--- ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'USD';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NULL DEFAULT 'USD';
+
+-- Binder slots schema migration (entry_key + source replaces entry_id UUID FK)
+ALTER TABLE binder_slots DROP COLUMN IF EXISTS entry_id;
+ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS entry_key VARCHAR(255);
+ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS source VARCHAR(20) CHECK (source IN ('collection', 'toGet'));

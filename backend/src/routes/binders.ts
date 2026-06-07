@@ -23,13 +23,13 @@ const RenameBinderSchema = z.object({
 });
 
 const SlotSchema = z.object({
-  entryId: z.string().uuid().nullable(),
+  entryKey: z.string().max(255).nullable(),
+  source: z.enum(['collection', 'toGet']).nullable(),
   condition: ConditionEnum.nullable(),
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// Fetches all binders + pages + slots for a user and assembles the nested structure
 async function fetchBinders(userId: number): Promise<Binder[]> {
   const bindersResult = await pool.query(
     'SELECT * FROM binders WHERE user_id = $1 ORDER BY created_at ASC',
@@ -54,18 +54,17 @@ async function fetchBinders(userId: number): Promise<Binder[]> {
       )
     : { rows: [] };
 
-  // Group slots by page_id
   const slotsByPage = new Map<string, BinderSlot[]>();
   for (const slot of slotsResult.rows) {
     if (!slotsByPage.has(slot.page_id)) slotsByPage.set(slot.page_id, []);
     slotsByPage.get(slot.page_id)!.push({
       position: slot.position,
-      entry_id: slot.entry_id,
+      entry_key: slot.entry_key,
+      source: slot.source,
       condition: slot.condition,
     });
   }
 
-  // Group pages by binder_id
   const pagesByBinder = new Map<string, BinderPage[]>();
   for (const page of pagesResult.rows) {
     if (!pagesByBinder.has(page.binder_id)) pagesByBinder.set(page.binder_id, []);
@@ -99,7 +98,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-// POST /binders — create a new binder with the requested number of pages
+// POST /binders
 router.post('/', async (req: Request, res: Response) => {
   const parsed = CreateBinderSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -142,7 +141,7 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /binders/:id — rename a binder
+// PUT /binders/:id — rename
 router.put('/:id', async (req: Request, res: Response) => {
   const parsed = RenameBinderSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -188,7 +187,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// POST /binders/:id/pages — add a page to a binder
+// POST /binders/:id/pages
 router.post('/:id/pages', async (req: Request, res: Response) => {
   try {
     const binderResult = await pool.query(
@@ -224,12 +223,9 @@ router.post('/:id/pages', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE /binders/:id/pages/:pageNumber — remove the last page
-router.delete('/:id/pages/:pageNumber', async (req: Request, res: Response) => {
-  const pageNumber = parseInt(req.params.pageNumber, 10);
-
+// DELETE /binders/:id/pages/:pageId — remove a page by UUID
+router.delete('/:id/pages/:pageId', async (req: Request, res: Response) => {
   try {
-    // Verify binder belongs to user
     const binderResult = await pool.query(
       'SELECT id FROM binders WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user!.userId]
@@ -240,8 +236,8 @@ router.delete('/:id/pages/:pageNumber', async (req: Request, res: Response) => {
     }
 
     const result = await pool.query(
-      'DELETE FROM binder_pages WHERE binder_id = $1 AND page_number = $2 RETURNING id',
-      [req.params.id, pageNumber]
+      'DELETE FROM binder_pages WHERE id = $1 AND binder_id = $2 RETURNING id',
+      [req.params.pageId, req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -256,25 +252,23 @@ router.delete('/:id/pages/:pageNumber', async (req: Request, res: Response) => {
   }
 });
 
-// PUT /binders/:id/pages/:pageNumber/slots/:position — set or clear a slot
-router.put('/:id/pages/:pageNumber/slots/:position', async (req: Request, res: Response) => {
+// PUT /binders/:id/pages/:pageId/slots/:position — set or clear a slot
+router.put('/:id/pages/:pageId/slots/:position', async (req: Request, res: Response) => {
   const parsed = SlotSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten().fieldErrors });
     return;
   }
 
-  const { entryId, condition } = parsed.data;
+  const { entryKey, source, condition } = parsed.data;
   const position = parseInt(req.params.position, 10);
-  const pageNumber = parseInt(req.params.pageNumber, 10);
 
   try {
-    // Get the page, verify binder ownership
     const pageResult = await pool.query(
       `SELECT bp.id FROM binder_pages bp
        JOIN binders b ON b.id = bp.binder_id
-       WHERE b.id = $1 AND b.user_id = $2 AND bp.page_number = $3`,
-      [req.params.id, req.user!.userId, pageNumber]
+       WHERE bp.id = $1 AND b.id = $2 AND b.user_id = $3`,
+      [req.params.pageId, req.params.id, req.user!.userId]
     );
 
     if (pageResult.rows.length === 0) {
@@ -282,35 +276,21 @@ router.put('/:id/pages/:pageNumber/slots/:position', async (req: Request, res: R
       return;
     }
 
-    const pageId: string = pageResult.rows[0].id;
-
-    if (entryId === null) {
-      // Clear the slot
+    if (entryKey === null) {
       await pool.query(
         'DELETE FROM binder_slots WHERE page_id = $1 AND position = $2',
-        [pageId, position]
+        [req.params.pageId, position]
       );
       res.json({ message: 'Slot cleared.' });
     } else {
-      // Verify the collection entry belongs to this user
-      const entryResult = await pool.query(
-        'SELECT id FROM collection_entries WHERE id = $1 AND user_id = $2',
-        [entryId, req.user!.userId]
-      );
-      if (entryResult.rows.length === 0) {
-        res.status(404).json({ error: 'Collection entry not found.' });
-        return;
-      }
-
       const result = await pool.query(
-        `INSERT INTO binder_slots (page_id, position, entry_id, condition)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO binder_slots (page_id, position, entry_key, source, condition)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (page_id, position)
-         DO UPDATE SET entry_id = EXCLUDED.entry_id, condition = EXCLUDED.condition
+         DO UPDATE SET entry_key = EXCLUDED.entry_key, source = EXCLUDED.source, condition = EXCLUDED.condition
          RETURNING *`,
-        [pageId, position, entryId, condition]
+        [req.params.pageId, position, entryKey, source, condition]
       );
-
       res.json({ slot: result.rows[0] });
     }
   } catch (err) {

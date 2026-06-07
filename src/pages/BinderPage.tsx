@@ -4,18 +4,11 @@ import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
-import type { Binder, BinderPage, BinderSlot, Condition } from '../types';
+import type { Binder, BinderPage, Condition } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import './BinderPage.css';
 
-function newId(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-function emptyPage(slotCount: number): BinderPage {
-  return { id: newId(), slots: Array<BinderSlot | null>(slotCount).fill(null) };
-}
 
 type ModalState =
   | { kind: 'create' }
@@ -27,7 +20,7 @@ type ModalState =
   | null;
 
 export function BinderPage() {
-  const { state, dispatch } = useCollection();
+  const { state, dispatch, createBinder, addBinderPage } = useCollection();
 
   const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
@@ -78,20 +71,13 @@ export function BinderPage() {
     setModal({ kind: 'create' });
   };
 
-  const confirmCreate = () => {
+  const confirmCreate = async () => {
     if (!nameInput.trim()) return;
-    const sc = newCols * newRows;
-    const newBinder: Binder = {
-      id: newId(),
-      name: nameInput.trim(),
-      cols: newCols,
-      rows: newRows,
-      createdAt: new Date().toISOString(),
-      pages: [emptyPage(sc)],
-    };
-    dispatch({ type: 'CREATE_BINDER', binder: newBinder });
-    setSelectedBinderId(newBinder.id);
-    setCurrentPageIndex(0);
+    const binder = await createBinder(nameInput.trim(), newCols, newRows);
+    if (binder) {
+      setSelectedBinderId(binder.id);
+      setCurrentPageIndex(0);
+    }
     setModal(null);
   };
 
@@ -122,11 +108,11 @@ export function BinderPage() {
 
   // ── Page management ──────────────────────────────────────────────────────────
 
-  const addPage = () => {
+  const addPage = async () => {
     if (!binder || binder.pages.length >= BINDER_MAX_PAGES) return;
-    const page = emptyPage(binder.cols * binder.rows);
-    dispatch({ type: 'ADD_BINDER_PAGE', binderId: binder.id, page });
-    setCurrentPageIndex(binder.pages.length);
+    const nextIndex = binder.pages.length;
+    const page = await addBinderPage(binder.id, binder.cols * binder.rows);
+    if (page) setCurrentPageIndex(nextIndex);
   };
 
   const removePage = () => {

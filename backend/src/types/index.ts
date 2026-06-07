@@ -42,7 +42,8 @@ export interface ToGetEntry {
 
 export interface BinderSlot {
   position: number;
-  entry_id: string | null;
+  entry_key: string | null;
+  source: 'collection' | 'toGet' | null;
   condition: Condition | null;
 }
 

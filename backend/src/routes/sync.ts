@@ -24,8 +24,8 @@ const LocalEntrySchema = z.object({
 });
 
 const LocalSlotSchema = z.object({
-  // Frontend entry ID: "${cardId}-${setCode}-${rarityCode}"
   entryId: z.string().optional().nullable(),
+  source: z.enum(['collection', 'toGet']).optional().nullable(),
   condition: ConditionEnum.optional().nullable(),
 });
 
@@ -66,38 +66,17 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     await client.query('BEGIN');
 
-    // Tracks frontend entryId → server UUID for binder slot resolution
-    const entryKeyToServerUUID = new Map<string, string>();
-
     // Import collection entries
     for (const entry of collection) {
-      const result = await client.query(
+      await client.query(
         `INSERT INTO collection_entries
            (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-         ON CONFLICT (user_id, entry_key, condition) DO NOTHING
-         RETURNING id, entry_key, condition`,
+         ON CONFLICT (user_id, entry_key, condition) DO NOTHING`,
         [userId, entry.entryKey, entry.cardId, entry.cardName, entry.cardImageUrl,
          entry.setName, entry.setCode, entry.rarity, entry.condition,
          entry.quantity, entry.dateAdded ?? new Date().toISOString()]
       );
-
-      if (result.rows.length > 0) {
-        const row = result.rows[0];
-        entryKeyToServerUUID.set(`${row.entry_key}:${row.condition}`, row.id);
-      }
-    }
-
-    // Also load any pre-existing entries so binder slots can resolve them
-    const existingResult = await client.query(
-      'SELECT id, entry_key, condition FROM collection_entries WHERE user_id = $1',
-      [userId]
-    );
-    for (const row of existingResult.rows) {
-      const key = `${row.entry_key}:${row.condition}`;
-      if (!entryKeyToServerUUID.has(key)) {
-        entryKeyToServerUUID.set(key, row.id);
-      }
     }
 
     // Import To Get entries
@@ -130,19 +109,13 @@ router.post('/', async (req: Request, res: Response) => {
 
         for (let s = 0; s < binder.pages[p].slots.length; s++) {
           const slot = binder.pages[p].slots[s];
-          if (!slot.entryId || !slot.condition) continue;
-
-          // The frontend entryId is "${cardId}-${setCode}-${rarityCode}"
-          // We stored with key "${cardId}-${setCode}-${rarity}:${condition}"
-          const key = `${slot.entryId}:${slot.condition}`;
-          const serverEntryId = entryKeyToServerUUID.get(key);
-          if (!serverEntryId) continue;
+          if (!slot.entryId) continue;
 
           await client.query(
-            `INSERT INTO binder_slots (page_id, position, entry_id, condition)
-             VALUES ($1, $2, $3, $4)
+            `INSERT INTO binder_slots (page_id, position, entry_key, source, condition)
+             VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (page_id, position) DO NOTHING`,
-            [pageId, s, serverEntryId, slot.condition]
+            [pageId, s, slot.entryId, slot.source ?? 'collection', slot.condition ?? null]
           );
         }
       }

@@ -3,7 +3,7 @@ import type { AppState, CollectionEntry, ToGetEntry, ConditionCopy, Condition, B
 import { CONDITION_ORDER } from '../types';
 import { loadState, saveState } from '../utils/storage';
 import { useAuth } from './AuthContext';
-import { collectionApi, toGetApi, syncApi } from '../services/api';
+import { collectionApi, toGetApi, syncApi, binderApi } from '../services/api';
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
@@ -376,7 +376,42 @@ async function syncToApi(action: Action, prevState: AppState): Promise<void> {
       break;
     }
 
-    // Binder actions: no API sync yet (Phase 6)
+    case 'RENAME_BINDER':
+      await binderApi.rename(action.binderId, action.name);
+      break;
+
+    case 'DELETE_BINDER':
+      await binderApi.delete(action.binderId);
+      break;
+
+    case 'REMOVE_BINDER_PAGE': {
+      await binderApi.removePage(action.binderId, action.pageId);
+      break;
+    }
+
+    case 'ASSIGN_BINDER_SLOT': {
+      const binder = prevState.binders.find((b) => b.id === action.binderId);
+      const page = binder?.pages.find((p) => p.id === action.pageId);
+      if (!binder || !page) break;
+      await binderApi.setSlot(action.binderId, action.pageId, action.slotIndex, action.entry);
+      break;
+    }
+
+    case 'MOVE_BINDER_SLOT': {
+      const binder = prevState.binders.find((b) => b.id === action.binderId);
+      if (!binder) break;
+      const fromPage = binder.pages.find((p) => p.id === action.fromPageId);
+      const toPage = binder.pages.find((p) => p.id === action.toPageId);
+      if (!fromPage || !toPage) break;
+      const fromSlot = fromPage.slots[action.fromSlot] ?? null;
+      const toSlot = toPage.slots[action.toSlot] ?? null;
+      await Promise.all([
+        binderApi.setSlot(action.binderId, action.fromPageId, action.fromSlot, toSlot),
+        binderApi.setSlot(action.binderId, action.toPageId, action.toSlot, fromSlot),
+      ]);
+      break;
+    }
+
     default:
       break;
   }
@@ -393,6 +428,8 @@ interface CollectionContextValue {
   showSyncPrompt: boolean;
   importLocalData: () => Promise<void>;
   dismissSyncPrompt: () => void;
+  createBinder: (name: string, cols: number, rows: number) => Promise<Binder | null>;
+  addBinderPage: (binderId: string, slotCount: number) => Promise<BinderPage | null>;
 }
 
 const CollectionContext = createContext<CollectionContextValue | null>(null);
@@ -431,27 +468,22 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
   async function loadFromApi() {
     setApiLoading(true);
     try {
-      // Snapshot local data BEFORE replacing state — used for sync prompt
       const snapshot = loadState();
 
-      const [collection, toGet] = await Promise.all([
+      const [collection, toGet, binders] = await Promise.all([
         collectionApi.fetchAll(),
         toGetApi.fetchAll(),
+        binderApi.fetchAll(),
       ]);
 
-      // Replace state with server data; binders are local-only until Phase 6
-      dispatch({
-        type: 'LOAD_STATE',
-        state: { collection, toGet, binders: [] },
-      });
+      dispatch({ type: 'LOAD_STATE', state: { collection, toGet, binders } });
 
-      // Offer to import local data if the user had anything saved as a guest
       if (snapshot.collection.length > 0 || snapshot.toGet.length > 0 || snapshot.binders.length > 0) {
         setLocalSnapshot(snapshot);
         setShowSyncPrompt(true);
       }
     } catch (err) {
-      console.error('Failed to load collection from API:', err);
+      console.error('Failed to load from API:', err);
     } finally {
       setApiLoading(false);
     }
@@ -482,16 +514,13 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
   const importLocalData = useCallback(async () => {
     if (!localSnapshot) return;
     try {
-      await syncApi.importLocalData(localSnapshot.collection, localSnapshot.toGet);
-      // Re-fetch to get the merged server state
-      const [collection, toGet] = await Promise.all([
+      await syncApi.importLocalData(localSnapshot.collection, localSnapshot.toGet, localSnapshot.binders);
+      const [collection, toGet, binders] = await Promise.all([
         collectionApi.fetchAll(),
         toGetApi.fetchAll(),
+        binderApi.fetchAll(),
       ]);
-      dispatch({
-        type: 'LOAD_STATE',
-        state: { collection, toGet, binders: localSnapshot.binders },
-      });
+      dispatch({ type: 'LOAD_STATE', state: { collection, toGet, binders } });
     } catch (err) {
       console.error('Import failed:', err);
     } finally {
@@ -499,6 +528,52 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
       setLocalSnapshot(null);
     }
   }, [localSnapshot]);
+
+  function localId(): string {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  }
+
+  const createBinder = useCallback(async (name: string, cols: number, rows: number): Promise<Binder | null> => {
+    if (isLoggedIn) {
+      try {
+        const binder = await binderApi.create(name, cols, rows);
+        dispatch({ type: 'CREATE_BINDER', binder });
+        return binder;
+      } catch (err) {
+        console.error('Failed to create binder:', err);
+        return null;
+      }
+    } else {
+      const slotCount = cols * rows;
+      const binder: Binder = {
+        id: localId(),
+        name,
+        cols,
+        rows,
+        createdAt: new Date().toISOString(),
+        pages: [{ id: localId(), slots: Array<BinderSlot | null>(slotCount).fill(null) }],
+      };
+      dispatch({ type: 'CREATE_BINDER', binder });
+      return binder;
+    }
+  }, [isLoggedIn]);
+
+  const addBinderPage = useCallback(async (binderId: string, slotCount: number): Promise<BinderPage | null> => {
+    if (isLoggedIn) {
+      try {
+        const page = await binderApi.addPage(binderId, slotCount);
+        dispatch({ type: 'ADD_BINDER_PAGE', binderId, page });
+        return page;
+      } catch (err) {
+        console.error('Failed to add page:', err);
+        return null;
+      }
+    } else {
+      const page: BinderPage = { id: localId(), slots: Array<BinderSlot | null>(slotCount).fill(null) };
+      dispatch({ type: 'ADD_BINDER_PAGE', binderId, page });
+      return page;
+    }
+  }, [isLoggedIn]);
 
   const dismissSyncPrompt = useCallback(() => {
     setShowSyncPrompt(false);
@@ -525,6 +600,8 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
         showSyncPrompt,
         importLocalData,
         dismissSyncPrompt,
+        createBinder,
+        addBinderPage,
       }}
     >
       {children}
