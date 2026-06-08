@@ -37,7 +37,7 @@ export function Navbar() {
           <span />
         </button>
 
-        <NavLink to="/dashboard" className="navbar__logo">YgoBinder</NavLink>
+        <NavLink to="/dashboard" className="navbar__logo">YgoBindr</NavLink>
 
         <div className="navbar__links">
           {NAV_ITEMS.map((item) => (

@@ -46,7 +46,7 @@ export function LandingPage() {
     <div className="landing">
       {/* ── Header ── */}
       <header className="landing__header">
-        <span className="landing__logo">YgoBinder</span>
+        <span className="landing__logo">YgoBindr</span>
         <button className="btn btn-primary landing__signin-btn" onClick={() => setAuthOpen(true)}>
           Sign in
         </button>
@@ -94,9 +94,9 @@ export function LandingPage() {
 
       {/* ── Footer ── */}
       <footer className="landing__footer">
-        <span>© {new Date().getFullYear()} YgoBinder</span>
+        <span>© {new Date().getFullYear()} YgoBindr</span>
         <a
-          href="https://github.com/bikramveer/YgoBinder"
+          href="https://github.com/bikramveer/YgoBindr"
           target="_blank"
           rel="noopener noreferrer"
           className="landing__footer-link"

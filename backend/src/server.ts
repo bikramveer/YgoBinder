@@ -77,5 +77,5 @@ cron.schedule('0 0 * * *', () => {
 
 const PORT = process.env.PORT ?? 3001;
 app.listen(PORT, () => {
-  console.log(`YgoBinder API running on port ${PORT}`);
+  console.log(`YgoBindr API running on port ${PORT}`);
 });

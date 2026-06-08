@@ -76,7 +76,7 @@ export function DashboardPage() {
 
   return (
     <main className="page dashboard">
-      <h1 className="dashboard__title">YgoBinder</h1>
+      <h1 className="dashboard__title">YgoBindr</h1>
 
       {/* ── Stats ── */}
       <div className="dashboard__stats">
@@ -208,7 +208,7 @@ export function DashboardPage() {
 
       {isEmpty && (
         <div className="empty-state">
-          <strong>Welcome to YgoBinder!</strong>
+          <strong>Welcome to YgoBindr!</strong>
           <p>Head to Search to find your first card.</p>
         </div>
       )}
