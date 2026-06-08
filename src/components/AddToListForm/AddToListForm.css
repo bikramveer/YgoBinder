@@ -18,10 +18,13 @@
 }
 .add-form__label {
   display: block;
-  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   color: var(--text-muted);
   margin-bottom: 0.3rem;
   font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 .add-form__field select,
 .add-form__field input {

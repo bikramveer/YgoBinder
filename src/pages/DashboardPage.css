@@ -1,9 +1,11 @@
 .dashboard__title {
-  font-size: 1.5rem;
+  font-family: var(--font-display);
+  font-size: 2rem;
   font-weight: 800;
   color: var(--accent);
   margin-bottom: 1.25rem;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 /* ── Stats bar ── */
@@ -25,6 +27,7 @@
 }
 
 .dashboard__stat-value {
+  font-family: var(--font-mono);
   font-size: 1.6rem;
   font-weight: 700;
   color: var(--accent);
@@ -62,11 +65,12 @@
 }
 
 .dashboard__section-title {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   margin-bottom: 0.6rem;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--border);
@@ -107,6 +111,7 @@
 .dashboard__binder-row:hover {
   border-color: var(--accent);
   background: var(--surface-2);
+  box-shadow: var(--glow-sm);
 }
 
 .dashboard__binder-row__info {
@@ -149,14 +154,14 @@
   width: 72px;
   height: 4px;
   background: var(--border);
-  border-radius: 2px;
+  border-radius: 0;
   overflow: hidden;
 }
 
 .dashboard__mini-bar__fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 2px;
+  border-radius: 0;
   transition: width 0.3s ease;
 }
 
@@ -177,14 +182,14 @@
 .dashboard__progress-bar {
   height: 6px;
   background: var(--border);
-  border-radius: 3px;
+  border-radius: 0;
   overflow: hidden;
 }
 
 .dashboard__progress-bar__fill {
   height: 100%;
   background: var(--accent);
-  border-radius: 3px;
+  border-radius: 0;
   transition: width 0.3s ease;
 }
 
@@ -233,9 +238,9 @@
   width: 32px;
   height: 46px;
   object-fit: cover;
-  border-radius: 3px;
+  border-radius: 0;
   flex-shrink: 0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .dashboard__needed-info {
@@ -284,6 +289,7 @@
 
 .dashboard__recent-card:hover {
   border-color: var(--accent);
+  box-shadow: var(--glow-sm);
 }
 
 .dashboard__recent-card img {
