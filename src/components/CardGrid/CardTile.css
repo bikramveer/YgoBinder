@@ -80,7 +80,7 @@
   letter-spacing: 0.04em;
 }
 .card-tile__badge--collection { background: var(--accent); color: #1a1a0e; }
-.card-tile__badge--toget { background: var(--success); color: #fff; }
+.card-tile__badge--wishlist { background: var(--success); color: #fff; }
 
 .card-tile__info {
   padding: 0.4rem 0.5rem 0.5rem;

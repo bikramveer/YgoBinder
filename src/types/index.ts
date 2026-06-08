@@ -85,7 +85,7 @@ export interface CollectionEntry {
   dateAdded: string; // ISO 8601
 }
 
-export interface ToGetEntry {
+export interface WishlistEntry {
   id: string; // "<cardId>-<setCode>"
   cardId: number;
   cardName: string;
@@ -101,7 +101,7 @@ export interface ToGetEntry {
 
 export interface AppState {
   collection: CollectionEntry[];
-  toGet: ToGetEntry[];
+  wishlist: WishlistEntry[];
   binders: Binder[];
 }
 
@@ -109,7 +109,7 @@ export interface AppState {
 
 export interface BinderSlot {
   entryId: string;
-  source: 'collection' | 'toGet';
+  source: 'collection' | 'wishlist';
   condition?: Condition; // which condition copy occupies this slot (collection only)
 }
 

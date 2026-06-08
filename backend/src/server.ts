@@ -8,7 +8,7 @@ import cron from 'node-cron';
 
 import authRouter from './routes/auth';
 import collectionRouter from './routes/collection';
-import togetRouter from './routes/toget';
+import wishlistRouter from './routes/wishlist';
 import bindersRouter from './routes/binders';
 import syncRouter from './routes/sync';
 import pricesRouter from './routes/prices';
@@ -57,7 +57,7 @@ app.use('/auth', authLimiter);
 
 app.use('/auth', authRouter);
 app.use('/collection', collectionRouter);
-app.use('/toget', togetRouter);
+app.use('/wishlist', wishlistRouter);
 app.use('/binders', bindersRouter);
 app.use('/sync', syncRouter);
 app.use('/prices', pricesRouter);

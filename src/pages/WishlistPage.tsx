@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { CONDITION_LABELS, CONDITION_ORDER } from '../types';
-import type { ToGetEntry, Condition, ConditionCopy } from '../types';
-import { exportToGet } from '../utils/exportCsv';
-import './ToGetPage.css';
+import type { WishlistEntry, Condition, ConditionCopy } from '../types';
+import { exportWishlist } from '../utils/exportCsv';
+import './WishlistPage.css';
 
 type Sort =
   | 'date_new' | 'date_old'
@@ -19,10 +19,10 @@ const SORT_OPTIONS: { value: Sort; label: string }[] = [
   { value: 'needed_least', label: 'Have enough first' },
 ];
 
-type AcquireState = { entry: ToGetEntry; quantity: number; condition: Condition } | null;
-type RemoveDialog = { entry: ToGetEntry; amount: number } | null;
+type AcquireState = { entry: WishlistEntry; quantity: number; condition: Condition } | null;
+type RemoveDialog = { entry: WishlistEntry; amount: number } | null;
 
-export function ToGetPage() {
+export function WishlistPage() {
   const { state, dispatch, stillNeeded } = useCollection();
 
   const [search,          setSearch]          = useState('');
@@ -32,19 +32,18 @@ export function ToGetPage() {
   const [acquiring,       setAcquiring]       = useState<AcquireState>(null);
   const [removing,        setRemoving]        = useState<RemoveDialog>(null);
 
-  // Unique rarities and conditions present in to-get list
   const rarities = useMemo(
-    () => [...new Set(state.toGet.map((e) => e.rarity))].sort(),
-    [state.toGet],
+    () => [...new Set(state.wishlist.map((e) => e.rarity))].sort(),
+    [state.wishlist],
   );
   const conditionsPresent = useMemo(
-    () => CONDITION_ORDER.filter((c) => state.toGet.some((e) => e.minCondition === c)),
-    [state.toGet],
+    () => CONDITION_ORDER.filter((c) => state.wishlist.some((e) => e.minCondition === c)),
+    [state.wishlist],
   );
 
   const entries = useMemo(() => {
     const q = search.toLowerCase();
-    let list = state.toGet.filter(
+    let list = state.wishlist.filter(
       (e) =>
         e.cardName.toLowerCase().includes(q) ||
         e.setName.toLowerCase().includes(q) ||
@@ -69,11 +68,11 @@ export function ToGetPage() {
         default: return 0;
       }
     });
-  }, [state.toGet, search, sort, filterCondition, filterRarity, stillNeeded]);
+  }, [state.wishlist, search, sort, filterCondition, filterRarity, stillNeeded]);
 
-  const handleRemoveClick = (entry: ToGetEntry) => {
+  const handleRemoveClick = (entry: WishlistEntry) => {
     if (entry.desiredQuantity === 1) {
-      dispatch({ type: 'REMOVE_FROM_TO_GET', id: entry.id });
+      dispatch({ type: 'REMOVE_FROM_WISHLIST', id: entry.id });
     } else {
       setRemoving({ entry, amount: 1 });
     }
@@ -81,33 +80,33 @@ export function ToGetPage() {
 
   const confirmRemove = () => {
     if (!removing) return;
-    dispatch({ type: 'REDUCE_TO_GET_QUANTITY', id: removing.entry.id, amount: removing.amount });
+    dispatch({ type: 'REDUCE_WISHLIST_QUANTITY', id: removing.entry.id, amount: removing.amount });
     setRemoving(null);
   };
 
   const confirmAcquire = () => {
     if (!acquiring) return;
     const copies: ConditionCopy[] = [{ condition: acquiring.condition, quantity: acquiring.quantity }];
-    dispatch({ type: 'ACQUIRE', toGetId: acquiring.entry.id, acquiredCopies: copies });
+    dispatch({ type: 'ACQUIRE', wishlistId: acquiring.entry.id, acquiredCopies: copies });
     setAcquiring(null);
   };
 
   return (
     <main className="page">
       <h1 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent)' }}>
-        To Get
+        Wishlist
       </h1>
 
       {/* Toolbar */}
-      <div className="toget-toolbar">
+      <div className="wishlist-toolbar">
         <input
-          className="toget-toolbar__search"
+          className="wishlist-toolbar__search"
           type="search"
           placeholder="Search cards…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <div className="toget-toolbar__controls">
+        <div className="wishlist-toolbar__controls">
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             {SORT_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -134,13 +133,13 @@ export function ToGetPage() {
             ))}
           </select>
         </div>
-        <span className="toget-toolbar__count">
-          {entries.length} of {state.toGet.length}
+        <span className="wishlist-toolbar__count">
+          {entries.length} of {state.wishlist.length}
         </span>
-        {state.toGet.length > 0 && (
+        {state.wishlist.length > 0 && (
           <button
-            className="btn btn-ghost toget-toolbar__export"
-            onClick={() => exportToGet(state.toGet, state.collection)}
+            className="btn btn-ghost wishlist-toolbar__export"
+            onClick={() => exportWishlist(state.wishlist, state.collection)}
           >
             Export CSV
           </button>
@@ -148,14 +147,14 @@ export function ToGetPage() {
       </div>
 
       {/* Empty states */}
-      {state.toGet.length === 0 && (
+      {state.wishlist.length === 0 && (
         <div className="empty-state">
-          <strong>Nothing on your list yet</strong>
-          <p>Search for cards and add them to your To Get list.</p>
+          <strong>Nothing on your wishlist yet</strong>
+          <p>Search for cards and add them to your Wishlist.</p>
         </div>
       )}
 
-      {state.toGet.length > 0 && entries.length === 0 && (
+      {state.wishlist.length > 0 && entries.length === 0 && (
         <div className="empty-state">
           <strong>No cards match your filters</strong>
           <p>Try adjusting your search or filters.</p>
@@ -164,36 +163,36 @@ export function ToGetPage() {
 
       {/* Entry list */}
       {entries.length > 0 && (
-        <div className="toget-list">
+        <div className="wishlist-list">
           {entries.map((entry) => {
             const needed = stillNeeded(entry);
             return (
-              <div key={entry.id} className="toget-row">
+              <div key={entry.id} className="wishlist-row">
                 {entry.cardImageUrl && (
                   <img
-                    className="toget-row__thumb"
+                    className="wishlist-row__thumb"
                     src={entry.cardImageUrl}
                     alt={entry.cardName}
                   />
                 )}
 
-                <div className="toget-row__info">
-                  <span className="toget-row__name">{entry.cardName}</span>
-                  <span className="toget-row__set">
+                <div className="wishlist-row__info">
+                  <span className="wishlist-row__name">{entry.cardName}</span>
+                  <span className="wishlist-row__set">
                     {entry.setName}
                     {' · '}
                     <span style={{ fontFamily: 'monospace' }}>{entry.setCode}</span>
                   </span>
-                  <span className="toget-row__cond">
+                  <span className="wishlist-row__cond">
                     {entry.rarity} · Min {CONDITION_LABELS[entry.minCondition]} ({entry.minCondition})
                   </span>
                 </div>
 
-                <div className="toget-row__meta">
-                  <span className={`toget-row__needed ${needed > 0 ? 'toget-row__needed--pending' : 'toget-row__needed--ok'}`}>
+                <div className="wishlist-row__meta">
+                  <span className={`wishlist-row__needed ${needed > 0 ? 'wishlist-row__needed--pending' : 'wishlist-row__needed--ok'}`}>
                     {needed > 0 ? `${needed} needed` : 'Have enough'}
                   </span>
-                  <span className="toget-row__wanted">/ {entry.desiredQuantity} wanted</span>
+                  <span className="wishlist-row__wanted">/ {entry.desiredQuantity} wanted</span>
 
                   <button
                     className="btn btn-success"
@@ -271,7 +270,7 @@ export function ToGetPage() {
       {removing && (
         <div className="modal-backdrop" onClick={() => setRemoving(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Remove from To Get</h2>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Remove from Wishlist</h2>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
               {removing.entry.cardName} — {removing.entry.setCode}
               <br />

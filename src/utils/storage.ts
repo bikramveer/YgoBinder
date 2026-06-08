@@ -5,7 +5,7 @@ const KEY = 'ygobinder_state';
 
 const INITIAL_STATE: AppState = {
   collection: [],
-  toGet: [],
+  wishlist: [],
   binders: [],
 };
 
@@ -16,7 +16,7 @@ export function loadState(): AppState {
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return {
       collection: parsed.collection ?? [],
-      toGet: parsed.toGet ?? [],
+      wishlist: (parsed as any).wishlist ?? (parsed as any).toGet ?? [],
       binders: ((parsed.binders ?? []) as Binder[]).map((b) => ({
         ...b,
         cols: b.cols ?? DEFAULT_BINDER_COLS,

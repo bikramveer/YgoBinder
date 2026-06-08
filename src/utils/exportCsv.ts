@@ -1,4 +1,4 @@
-import type { CollectionEntry, ToGetEntry } from '../types';
+import type { CollectionEntry, WishlistEntry } from '../types';
 
 function escape(value: string): string {
   if (value.includes(',') || value.includes('"') || value.includes('\n')) {
@@ -36,7 +36,7 @@ export function exportCollection(entries: CollectionEntry[]): void {
   download('ygobinder-collection.csv', [headers, ...rows]);
 }
 
-export function exportToGet(entries: ToGetEntry[], collection: CollectionEntry[]): void {
+export function exportWishlist(entries: WishlistEntry[], collection: CollectionEntry[]): void {
   const headers = [
     'Card Name', 'Set Name', 'Set Code', 'Rarity',
     'Min Condition', 'Desired', 'Owned', 'Still Needed', 'Date Added',
@@ -51,5 +51,5 @@ export function exportToGet(entries: ToGetEntry[], collection: CollectionEntry[]
       e.dateAdded.slice(0, 10),
     ];
   });
-  download('ygobinder-to-get.csv', [headers, ...rows]);
+  download('ygobinder-wishlist.csv', [headers, ...rows]);
 }

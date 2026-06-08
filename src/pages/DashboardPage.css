@@ -166,8 +166,8 @@
   flex-shrink: 0;
 }
 
-/* ── To Get progress ── */
-.dashboard__toget-progress {
+/* ── Wishlist progress ── */
+.dashboard__wishlist-progress {
   margin-bottom: 0.9rem;
   display: flex;
   flex-direction: column;

@@ -1,8 +1,8 @@
 .card-picker {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  max-height: 72vh;
+  height: 72vh;
+  min-height: 420px;
 }
 
 /* ── Tabs ── */
@@ -10,12 +10,11 @@
   display: flex;
   gap: 0.25rem;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 0;
   flex-shrink: 0;
 }
 
 .card-picker__tab {
-  padding: 0.4rem 0.9rem;
+  padding: 0.45rem 1rem;
   font-size: 0.82rem;
   font-weight: 600;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
@@ -33,160 +32,180 @@
   border-bottom-color: var(--accent);
 }
 
-/* ── Search input ── */
-.card-picker__search {
-  width: 100%;
+/* ── Filter bar ── */
+.card-picker__filters {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.6rem 0;
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-/* ── Scrollable list ── */
-.card-picker__list {
-  overflow-y: auto;
+.card-picker__filter-search {
   flex: 1;
+  min-width: 140px;
+}
+
+.card-picker__filter-select {
+  flex: 0 1 140px;
+  font-size: 0.78rem;
+}
+
+.card-picker__filter-select--type {
+  flex: 0 1 110px;
+}
+
+/* ── Scrollable body ── */
+.card-picker__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Card grid ── */
+.card-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+  gap: 0.6rem;
+  padding: 0.25rem 0.1rem 0.5rem;
+  align-content: start;
+}
+
+/* ── Card tile ── */
+.card-picker__tile {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-height: 80px;
-}
-
-.card-picker__section-label {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  padding: 0.4rem 0.25rem 0.2rem;
-}
-
-/* ── Entry block (card + condition rows) ── */
-.card-picker__entry {
+  gap: 0.3rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  margin-bottom: 2px;
-  overflow: hidden;
+  padding: 0.4rem;
+  background: var(--surface);
+  font-size: 0.72rem;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.card-picker__entry-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.5rem;
+.card-picker__tile--clickable {
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.card-picker__tile--clickable:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.card-picker__tile--clickable:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.card-picker__tile-img-wrap {
+  width: 100%;
+  aspect-ratio: 421 / 614;
+  overflow: hidden;
+  border-radius: 3px;
   background: var(--surface-2);
 }
 
-/* ── Condition row (clickable) ── */
-.card-picker__condition-row {
+.card-picker__tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.card-picker__tile-img-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  width: 100%;
-  padding: 0.3rem 0.5rem 0.3rem 0.75rem;
-  text-align: left;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--border);
-  cursor: pointer;
+  justify-content: center;
+  font-size: 1rem;
+  color: var(--text-dim);
+}
+
+.card-picker__tile-name {
+  font-size: 0.7rem;
+  font-weight: 600;
   color: var(--text);
-  transition: background 0.12s;
-  font-size: 0.8rem;
-}
-.card-picker__condition-row:hover { background: var(--surface-3); }
-
-.card-picker__cond-badge {
-  display: inline-block;
-  padding: 1px 5px;
-  border-radius: 3px;
-  background: var(--surface-3);
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: var(--accent);
-  font-family: monospace;
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
-.card-picker__cond-label {
-  flex: 1;
+.card-picker__tile-sub {
+  font-size: 0.65rem;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.card-picker__cond-avail {
-  font-size: 0.72rem;
+.card-picker__tile-avail {
+  font-size: 0.65rem;
   color: var(--success);
   font-weight: 600;
-  white-space: nowrap;
 }
 
-/* ── Plain item row (for To Get entries) ── */
-.card-picker__item {
+/* ── Condition chips (on owned tiles) ── */
+.card-picker__tile-conds {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.4rem 0.5rem;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: background 0.12s;
-  border: none;
-  background: none;
-  text-align: left;
-  width: 100%;
-  color: var(--text);
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  margin-top: 0.1rem;
 }
-.card-picker__item:hover { background: var(--surface-2); }
 
-.card-picker__item-img {
-  width: 32px;
-  height: 45px;
-  object-fit: cover;
+.card-picker__cond-chip {
+  padding: 2px 5px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  font-family: monospace;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 3px;
-  flex-shrink: 0;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.card-picker__cond-chip:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+.card-picker__cond-chip--best {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.card-picker__cond-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
-.card-picker__item-info {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  flex: 1;
-  min-width: 0;
-}
-
-.card-picker__item-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.card-picker__item-sub {
-  font-size: 0.72rem;
+/* ── All Cards section label ── */
+.card-picker__all-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 0.4rem 0.1rem 0.2rem;
 }
 
 /* ── Empty state ── */
 .card-picker__empty {
+  grid-column: 1 / -1;
   text-align: center;
   color: var(--text-muted);
   font-size: 0.82rem;
-  padding: 1.25rem 0;
+  padding: 2rem 0;
 }
 
-/* ── Footer ── */
-.card-picker__footer {
-  display: flex;
-  justify-content: flex-end;
-  flex-shrink: 0;
-  padding-top: 0.25rem;
-}
-
-/* ── Configure (Add new card) form ── */
+/* ── Configure panel (All Cards tab) ── */
 .card-picker__configure {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  overflow-y: auto;
-  flex: 1;
+  padding: 0.25rem 0.1rem;
 }
 
 .card-picker__back-btn {
@@ -198,52 +217,68 @@
   padding: 0;
   text-align: left;
   transition: color 0.12s;
+  align-self: flex-start;
 }
 .card-picker__back-btn:hover { color: var(--text); }
 
 .card-picker__config-header {
   display: flex;
-  gap: 0.6rem;
-  align-items: center;
+  gap: 0.75rem;
+  align-items: flex-start;
 }
 
 .card-picker__config-img {
-  width: 45px;
-  height: 63px;
-  object-fit: cover;
-  border-radius: 4px;
+  width: 52px;
   flex-shrink: 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.card-picker__config-tabs {
+.card-picker__config-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+  margin-bottom: 0.2rem;
+}
+
+.card-picker__config-type {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.card-picker__config-toggle {
   display: flex;
-  gap: 0.25rem;
-  border-bottom: 1px solid var(--border);
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  align-self: flex-start;
 }
 
 .card-picker__config-tab {
-  padding: 0.35rem 0.75rem;
+  padding: 0.35rem 0.85rem;
   font-size: 0.8rem;
   font-weight: 600;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
   border: none;
   background: none;
   color: var(--text-muted);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  transition: color 0.15s;
+  transition: background 0.12s, color 0.12s;
 }
-.card-picker__config-tab:hover { color: var(--text); }
+.card-picker__config-tab + .card-picker__config-tab {
+  border-left: 1px solid var(--border);
+}
+.card-picker__config-tab:hover { background: var(--surface-2); color: var(--text); }
 .card-picker__config-tab--active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
 .card-picker__config-fields {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.6rem;
 }
 
 .card-picker__config-label {
@@ -253,7 +288,90 @@
   font-size: 0.78rem;
   color: var(--text-muted);
 }
-.card-picker__config-label select {
-  width: 100%;
-  font-size: 0.8rem;
+.card-picker__config-label select { width: 100%; }
+
+/* ── Selection tray ── */
+.card-picker__tray {
+  border-top: 1px solid var(--border);
+  padding: 0.6rem 0 0;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.card-picker__tray-hint {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 0.25rem 0;
+}
+
+.card-picker__tray-chips {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  min-height: 52px;
+  align-items: center;
+}
+
+.card-picker__chip {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+}
+
+.card-picker__chip-img {
+  width: 38px;
+  aspect-ratio: 421 / 614;
+  object-fit: cover;
+  border-radius: 3px;
+  display: block;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.card-picker__chip-cond {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  font-family: monospace;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 1px 3px;
+  border-radius: 2px;
+  line-height: 1;
+}
+
+.card-picker__chip-remove {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.12s, color 0.12s;
+}
+.card-picker__chip-remove:hover {
+  background: var(--error, #e05);
+  color: #fff;
+  border-color: transparent;
+}
+
+.card-picker__tray-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }

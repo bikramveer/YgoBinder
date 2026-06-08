@@ -39,28 +39,28 @@ export function DashboardPage() {
     [state.binders],
   );
 
-  // To Get overall progress
-  const toGetProgress = useMemo(() => {
-    if (state.toGet.length === 0) return null;
+  // Wishlist overall progress
+  const wishlistProgress = useMemo(() => {
+    if (state.wishlist.length === 0) return null;
     let desired = 0;
     let acquired = 0;
-    for (const e of state.toGet) {
+    for (const e of state.wishlist) {
       desired += e.desiredQuantity;
       acquired += e.desiredQuantity - stillNeeded(e);
     }
     const pct = desired > 0 ? Math.round((acquired / desired) * 100) : 0;
     return { desired, acquired, pct };
-  }, [state.toGet, stillNeeded]);
+  }, [state.wishlist, stillNeeded]);
 
   // Top 3 cards still most needed
   const topNeeded = useMemo(
     () =>
-      [...state.toGet]
+      [...state.wishlist]
         .map((e) => ({ entry: e, needed: stillNeeded(e) }))
         .filter((x) => x.needed > 0)
         .sort((a, b) => b.needed - a.needed)
         .slice(0, 3),
-    [state.toGet, stillNeeded],
+    [state.wishlist, stillNeeded],
   );
 
   // 8 most recently added collection cards
@@ -72,7 +72,7 @@ export function DashboardPage() {
     [state.collection],
   );
 
-  const isEmpty = totalUnique === 0 && state.toGet.length === 0 && state.binders.length === 0;
+  const isEmpty = totalUnique === 0 && state.wishlist.length === 0 && state.binders.length === 0;
 
   return (
     <main className="page dashboard">
@@ -89,8 +89,8 @@ export function DashboardPage() {
           <span className="dashboard__stat-label">Total Copies</span>
         </div>
         <div className="dashboard__stat-tile">
-          <span className="dashboard__stat-value">{state.toGet.length}</span>
-          <span className="dashboard__stat-label">On To Get</span>
+          <span className="dashboard__stat-value">{state.wishlist.length}</span>
+          <span className="dashboard__stat-label">On Wishlist</span>
         </div>
         <div className="dashboard__stat-tile">
           <span className="dashboard__stat-value dashboard__stat-value--dim">$-.--</span>
@@ -103,7 +103,7 @@ export function DashboardPage() {
       <div className="dashboard__quick-links">
         <Link to="/search" className="btn btn-primary">Search Cards</Link>
         <Link to="/collection" className="btn btn-ghost">Collection</Link>
-        <Link to="/to-get" className="btn btn-ghost">To Get</Link>
+        <Link to="/wishlist" className="btn btn-ghost">Wishlist</Link>
         <Link to="/binder" className="btn btn-ghost">Binders</Link>
       </div>
 
@@ -136,21 +136,21 @@ export function DashboardPage() {
         </section>
       )}
 
-      {/* ── To Get ── */}
-      {state.toGet.length > 0 && toGetProgress && (
+      {/* ── Wishlist ── */}
+      {state.wishlist.length > 0 && wishlistProgress && (
         <section className="dashboard__section">
-          <h2 className="dashboard__section-title">To Get</h2>
+          <h2 className="dashboard__section-title">Wishlist</h2>
 
-          <div className="dashboard__toget-progress">
+          <div className="dashboard__wishlist-progress">
             <div className="dashboard__progress-bar">
               <div
                 className="dashboard__progress-bar__fill"
-                style={{ width: `${toGetProgress.pct}%` }}
+                style={{ width: `${wishlistProgress.pct}%` }}
               />
             </div>
             <span className="dashboard__progress-label">
-              {toGetProgress.acquired} of {toGetProgress.desired} copies acquired
-              <span className="dashboard__progress-pct"> · {toGetProgress.pct}%</span>
+              {wishlistProgress.acquired} of {wishlistProgress.desired} copies acquired
+              <span className="dashboard__progress-pct"> · {wishlistProgress.pct}%</span>
             </span>
           </div>
 
@@ -180,7 +180,7 @@ export function DashboardPage() {
             </>
           )}
 
-          <Link to="/to-get" className="dashboard__section-link">View full list →</Link>
+          <Link to="/wishlist" className="dashboard__section-link">View full list →</Link>
         </section>
       )}
 

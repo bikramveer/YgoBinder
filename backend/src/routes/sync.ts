@@ -25,7 +25,7 @@ const LocalEntrySchema = z.object({
 
 const LocalSlotSchema = z.object({
   entryId: z.string().optional().nullable(),
-  source: z.enum(['collection', 'toGet']).optional().nullable(),
+  source: z.enum(['collection', 'wishlist']).optional().nullable(),
   condition: ConditionEnum.optional().nullable(),
 });
 
@@ -43,7 +43,7 @@ const LocalBinderSchema = z.object({
 
 const SyncSchema = z.object({
   collection: z.array(LocalEntrySchema),
-  toGet: z.array(LocalEntrySchema),
+  wishlist: z.array(LocalEntrySchema),
   binders: z.array(LocalBinderSchema),
 });
 
@@ -59,7 +59,7 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  const { collection, toGet, binders } = parsed.data;
+  const { collection, wishlist, binders } = parsed.data;
   const userId = req.user!.userId;
   const client = await pool.connect();
 
@@ -79,10 +79,10 @@ router.post('/', async (req: Request, res: Response) => {
       );
     }
 
-    // Import To Get entries
-    for (const entry of toGet) {
+    // Import wishlist entries
+    for (const entry of wishlist) {
       await client.query(
-        `INSERT INTO toget_entries
+        `INSERT INTO wishlist_entries
            (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity, date_added)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (user_id, entry_key) DO NOTHING`,

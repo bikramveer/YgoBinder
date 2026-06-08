@@ -58,7 +58,7 @@ export async function runPriceSync(): Promise<void> {
     const tracked = await client.query<{ card_id: number; set_code: string; rarity: string }>(
       `SELECT DISTINCT card_id, set_code, rarity FROM collection_entries
        UNION
-       SELECT DISTINCT card_id, set_code, rarity FROM toget_entries`,
+       SELECT DISTINCT card_id, set_code, rarity FROM wishlist_entries`,
     );
 
     if (tracked.rows.length === 0) {

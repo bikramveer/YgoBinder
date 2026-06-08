@@ -1,6 +1,6 @@
 import { useCollection } from '../../context/CollectionContext';
 import { CONDITION_LABELS, CONDITION_ORDER } from '../../types';
-import type { CollectionEntry, ToGetEntry, Condition } from '../../types';
+import type { CollectionEntry, WishlistEntry, Condition } from '../../types';
 import type { ResolvedSlotData } from './BinderSlot';
 import './BinderCardModal.css';
 
@@ -18,9 +18,9 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
       ? state.collection.find((e) => e.id === slotData.entryId)
       : undefined;
 
-  const toGetEntry: ToGetEntry | undefined =
-    slotData.source === 'toGet'
-      ? state.toGet.find((e) => e.id === slotData.entryId)
+  const wishlistEntry: WishlistEntry | undefined =
+    slotData.source === 'wishlist'
+      ? state.wishlist.find((e) => e.id === slotData.entryId)
       : undefined;
 
   const handleAddCopy = (condition: Condition) => {
@@ -44,20 +44,20 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
     });
   };
 
-  const handleToGetQtyChange = (delta: number) => {
-    if (!toGetEntry) return;
-    const newQty = toGetEntry.desiredQuantity + delta;
+  const handleWishlistQtyChange = (delta: number) => {
+    if (!wishlistEntry) return;
+    const newQty = wishlistEntry.desiredQuantity + delta;
     if (newQty <= 0) {
-      dispatch({ type: 'REMOVE_FROM_TO_GET', id: toGetEntry.id });
+      dispatch({ type: 'REMOVE_FROM_WISHLIST', id: wishlistEntry.id });
       onClose();
     } else {
-      dispatch({ type: 'UPDATE_TO_GET', id: toGetEntry.id, patch: { desiredQuantity: newQty } });
+      dispatch({ type: 'UPDATE_WISHLIST', id: wishlistEntry.id, patch: { desiredQuantity: newQty } });
     }
   };
 
-  const handleToGetConditionChange = (condition: Condition) => {
-    if (!toGetEntry) return;
-    dispatch({ type: 'UPDATE_TO_GET', id: toGetEntry.id, patch: { minCondition: condition } });
+  const handleWishlistConditionChange = (condition: Condition) => {
+    if (!wishlistEntry) return;
+    dispatch({ type: 'UPDATE_WISHLIST', id: wishlistEntry.id, patch: { minCondition: condition } });
   };
 
   return (
@@ -87,17 +87,17 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
               )}
             </span>
           )}
-          {toGetEntry && (
+          {wishlistEntry && (
             <span className="binder-card-modal__sub">
-              {toGetEntry.setName}
+              {wishlistEntry.setName}
               <br />
-              {toGetEntry.setCode} · {toGetEntry.rarity}
+              {wishlistEntry.setCode} · {wishlistEntry.rarity}
             </span>
           )}
           <span
-            className={`binder-card-modal__badge binder-card-modal__badge--${slotData.source === 'collection' ? 'collection' : 'toget'}`}
+            className={`binder-card-modal__badge binder-card-modal__badge--${slotData.source === 'collection' ? 'collection' : 'wishlist'}`}
           >
-            {slotData.source === 'collection' ? 'In Collection' : 'To Get'}
+            {slotData.source === 'collection' ? 'In Collection' : 'Wishlist'}
           </span>
         </div>
       </div>
@@ -138,25 +138,25 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
         </div>
       )}
 
-      {/* To Get edit section */}
-      {toGetEntry && (
+      {/* Wishlist edit section */}
+      {wishlistEntry && (
         <div className="binder-card-modal__section">
-          <div className="binder-card-modal__section-title">To Get details</div>
+          <div className="binder-card-modal__section-title">Wishlist details</div>
           <div className="binder-card-modal__copies-row">
             <span className="binder-card-modal__copies-label">Desired qty</span>
             <div className="binder-card-modal__qty-ctrl">
               <button
                 className="binder-card-modal__qty-btn"
-                onClick={() => handleToGetQtyChange(-1)}
-                disabled={toGetEntry.desiredQuantity <= 1}
+                onClick={() => handleWishlistQtyChange(-1)}
+                disabled={wishlistEntry.desiredQuantity <= 1}
                 aria-label="Decrease quantity"
               >
                 −
               </button>
-              <span className="binder-card-modal__qty-val">{toGetEntry.desiredQuantity}</span>
+              <span className="binder-card-modal__qty-val">{wishlistEntry.desiredQuantity}</span>
               <button
                 className="binder-card-modal__qty-btn"
-                onClick={() => handleToGetQtyChange(1)}
+                onClick={() => handleWishlistQtyChange(1)}
                 aria-label="Increase quantity"
               >
                 +
@@ -166,8 +166,8 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
           <div className="binder-card-modal__copies-row">
             <span className="binder-card-modal__copies-label">Min condition</span>
             <select
-              value={toGetEntry.minCondition}
-              onChange={(e) => handleToGetConditionChange(e.target.value as Condition)}
+              value={wishlistEntry.minCondition}
+              onChange={(e) => handleWishlistConditionChange(e.target.value as Condition)}
               style={{ fontSize: '0.8rem' }}
             >
               {CONDITION_ORDER.map((c) => (
@@ -177,8 +177,8 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
           </div>
           <div className="binder-card-modal__copies-row" style={{ marginTop: '0.25rem' }}>
             <span className="binder-card-modal__copies-label">Still needed</span>
-            <span style={{ fontWeight: 600, color: stillNeeded(toGetEntry) > 0 ? 'var(--accent)' : 'var(--success)' }}>
-              {stillNeeded(toGetEntry) > 0 ? `${stillNeeded(toGetEntry)} of ${toGetEntry.desiredQuantity}` : 'Have enough'}
+            <span style={{ fontWeight: 600, color: stillNeeded(wishlistEntry) > 0 ? 'var(--accent)' : 'var(--success)' }}>
+              {stillNeeded(wishlistEntry) > 0 ? `${stillNeeded(wishlistEntry)} of ${wishlistEntry.desiredQuantity}` : 'Have enough'}
             </span>
           </div>
         </div>

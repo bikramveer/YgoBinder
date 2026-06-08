@@ -13,7 +13,7 @@ interface Props {
 export function CardTile({ card, viewMode, onClick, onQuickAdd }: Props) {
   const { state } = useCollection();
   const inCollection = state.collection.some((e) => e.cardId === card.id);
-  const inToGet = state.toGet.some((e) => e.cardId === card.id);
+  const inWishlist = state.wishlist.some((e) => e.cardId === card.id);
 
   const typeColor = getCardTypeColor(card.frameType);
   const typeLabel = getCardTypeLabel(card.type, card.frameType);
@@ -38,7 +38,7 @@ export function CardTile({ card, viewMode, onClick, onQuickAdd }: Props) {
             </span>
             <div className="card-list-row__badges">
               {inCollection && <span className="card-tile__badge card-tile__badge--collection">Owned</span>}
-              {inToGet && <span className="card-tile__badge card-tile__badge--toget">Want</span>}
+              {inWishlist && <span className="card-tile__badge card-tile__badge--wishlist">Want</span>}
             </div>
           </div>
         </div>
@@ -59,7 +59,7 @@ export function CardTile({ card, viewMode, onClick, onQuickAdd }: Props) {
         }
         <div className="card-tile__badges">
           {inCollection && <span className="card-tile__badge card-tile__badge--collection">Owned</span>}
-          {inToGet && <span className="card-tile__badge card-tile__badge--toget">Want</span>}
+          {inWishlist && <span className="card-tile__badge card-tile__badge--wishlist">Want</span>}
         </div>
         <button
           className="card-tile__quick-add"

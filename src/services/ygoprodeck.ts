@@ -9,12 +9,17 @@ export async function searchCards(
   cardType?: string,
 ): Promise<YGOSearchResponse> {
   const params = new URLSearchParams({
-    fname: query,
     num: String(PAGE_SIZE),
     offset: String(offset),
-    // include set data so we can do client-side rarity filtering
     misc: 'yes',
   });
+
+  if (query.trim()) {
+    params.set('fname', query);
+  } else {
+    // No query — return newest cards as a useful default
+    params.set('sort', 'new');
+  }
 
   if (cardType) {
     params.set('type', cardType);

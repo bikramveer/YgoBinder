@@ -1,4 +1,4 @@
-import type { CollectionEntry, ToGetEntry, Condition, ConditionCopy, Binder, BinderPage, BinderSlot } from '../types';
+import type { CollectionEntry, WishlistEntry, Condition, ConditionCopy, Binder, BinderPage, BinderSlot } from '../types';
 import { CONDITION_ORDER } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
@@ -27,11 +27,11 @@ export function registerAuthCallbacks(
 // Populated on login and updated on every add.
 
 const collectionCache = new Map<string, string>(); // `${entryKey}:${condition}` → backendUUID
-const toGetCache = new Map<string, string>();       // entryKey → backendUUID
+const wishlistCache = new Map<string, string>();    // entryKey → backendUUID
 
 export function clearCaches(): void {
   collectionCache.clear();
-  toGetCache.clear();
+  wishlistCache.clear();
 }
 
 // ── Core fetch wrapper ────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ interface BackendCollectionRow {
   date_added: string;
 }
 
-interface BackendToGetRow {
+interface BackendWishlistRow {
   id: string;
   entry_key: string;
   card_id: number;
@@ -142,8 +142,8 @@ function groupCollectionRows(rows: BackendCollectionRow[]): CollectionEntry[] {
   return Array.from(map.values());
 }
 
-function rowToToGet(row: BackendToGetRow): ToGetEntry {
-  toGetCache.set(row.entry_key, row.id);
+function rowToWishlist(row: BackendWishlistRow): WishlistEntry {
+  wishlistCache.set(row.entry_key, row.id);
   return {
     id: row.entry_key,
     cardId: row.card_id,
@@ -276,18 +276,18 @@ export const collectionApi = {
   },
 };
 
-// ── To Get API ────────────────────────────────────────────────────────────────
+// ── Wishlist API ──────────────────────────────────────────────────────────────
 
-export const toGetApi = {
-  async fetchAll(): Promise<ToGetEntry[]> {
-    const res = await apiFetch('/toget');
-    if (!res.ok) throw new Error('Failed to load To Get list.');
-    const body = (await res.json()) as { toGet: BackendToGetRow[] };
-    return body.toGet.map(rowToToGet);
+export const wishlistApi = {
+  async fetchAll(): Promise<WishlistEntry[]> {
+    const res = await apiFetch('/wishlist');
+    if (!res.ok) throw new Error('Failed to load Wishlist.');
+    const body = (await res.json()) as { wishlist: BackendWishlistRow[] };
+    return body.wishlist.map(rowToWishlist);
   },
 
-  async add(entry: ToGetEntry): Promise<void> {
-    const res = await apiFetch('/toget', {
+  async add(entry: WishlistEntry): Promise<void> {
+    const res = await apiFetch('/wishlist', {
       method: 'POST',
       body: JSON.stringify({
         entryKey: entry.id,
@@ -302,42 +302,42 @@ export const toGetApi = {
       }),
     });
     if (!res.ok) return;
-    const body = (await res.json()) as { entry: BackendToGetRow };
-    toGetCache.set(entry.id, body.entry.id);
+    const body = (await res.json()) as { entry: BackendWishlistRow };
+    wishlistCache.set(entry.id, body.entry.id);
   },
 
   async update(entryId: string, patch: { condition?: Condition; quantity?: number }): Promise<void> {
-    const backendId = toGetCache.get(entryId);
+    const backendId = wishlistCache.get(entryId);
     if (!backendId) return;
-    await apiFetch(`/toget/${backendId}`, {
+    await apiFetch(`/wishlist/${backendId}`, {
       method: 'PUT',
       body: JSON.stringify(patch),
     });
   },
 
   async remove(entryId: string): Promise<void> {
-    const backendId = toGetCache.get(entryId);
+    const backendId = wishlistCache.get(entryId);
     if (!backendId) return;
-    const res = await apiFetch(`/toget/${backendId}`, { method: 'DELETE' });
-    if (res.ok) toGetCache.delete(entryId);
+    const res = await apiFetch(`/wishlist/${backendId}`, { method: 'DELETE' });
+    if (res.ok) wishlistCache.delete(entryId);
   },
 
   async acquire(
     entryId: string,
     copies: ConditionCopy[],
   ): Promise<{ removed: boolean }> {
-    const backendId = toGetCache.get(entryId);
+    const backendId = wishlistCache.get(entryId);
     if (!backendId) return { removed: false };
     // Backend acquire handles one condition at a time; use the first copy
     const copy = copies[0];
     if (!copy) return { removed: false };
-    const res = await apiFetch(`/toget/${backendId}/acquire`, {
+    const res = await apiFetch(`/wishlist/${backendId}/acquire`, {
       method: 'POST',
       body: JSON.stringify({ quantity: copy.quantity, condition: copy.condition }),
     });
     if (!res.ok) return { removed: false };
     const body = (await res.json()) as { removed: boolean };
-    if (body.removed) toGetCache.delete(entryId);
+    if (body.removed) wishlistCache.delete(entryId);
     return body;
   },
 };
@@ -398,7 +398,7 @@ interface BackendBinderPage {
 interface BackendBinderSlot {
   position: number;
   entry_key: string | null;
-  source: 'collection' | 'toGet' | null;
+  source: 'collection' | 'wishlist' | null;
   condition: Condition | null;
 }
 
@@ -498,7 +498,7 @@ export const binderApi = {
 export const syncApi = {
   async importLocalData(
     collection: CollectionEntry[],
-    toGet: ToGetEntry[],
+    wishlist: WishlistEntry[],
     binders: Binder[],
   ): Promise<void> {
     // Transform frontend entries back to the flat shape the sync endpoint expects
@@ -517,7 +517,7 @@ export const syncApi = {
       })),
     );
 
-    const flatToGet = toGet.map((entry) => ({
+    const flatWishlist = wishlist.map((entry) => ({
       entryKey: entry.id,
       cardId: entry.cardId,
       cardName: entry.cardName,
@@ -546,7 +546,7 @@ export const syncApi = {
 
     await apiFetch('/sync', {
       method: 'POST',
-      body: JSON.stringify({ collection: flatCollection, toGet: flatToGet, binders: serializedBinders }),
+      body: JSON.stringify({ collection: flatCollection, wishlist: flatWishlist, binders: serializedBinders }),
     });
   },
 };
