@@ -77,7 +77,7 @@ export function SearchPage() {
       });
     } else {
       dispatch({
-        type: 'ADD_TO_TO_GET',
+        type: 'ADD_TO_WISHLIST',
         entry: {
           id: entryId,
           cardId: card.id,
