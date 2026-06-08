@@ -585,6 +585,119 @@ Flow: `goToSpread(n)` → sets flipDir, pendingSpreadIndex, animState='out' → 
 
 ---
 
+## 7. Cleaning Branch (2026-06-08)
+
+### "To Get" → "Wishlist" Rename
+
+Renamed the entire "To Get" concept to "Wishlist" — everywhere: display strings, state keys, TypeScript types, action types, route names, CSS classes, and the PostgreSQL table.
+
+**Why rename?** "To Get" was awkward English. "Wishlist" is the standard term users expect.
+
+**Scope of changes:** `backend/src/server.ts`, `routes/sync.ts`, `routes/binders.ts`, `services/priceSync.ts`, `db/schema.sql`, `src/pages/DashboardPage.tsx` + `.css`, `src/pages/SearchPage.tsx`, `src/components/Binder/BinderSlot.tsx`, `BinderCardModal.tsx`.
+
+`src/utils/storage.ts` kept backwards compatibility:
+```typescript
+(parsed as any).wishlist ?? (parsed as any).toGet ?? []
+```
+Existing guest users' localStorage has the old `toGet` key — reading both ensures they don't lose data after the update.
+
+**DB migration (`001_rename_toget_to_wishlist.sql`) — critical ordering:**
+
+You can't `UPDATE binder_slots SET source = 'wishlist'` while the old CHECK constraint `('collection', 'toGet')` is still in place — PostgreSQL rejects the new value. Fix: drop the CHECK constraint first, run the UPDATE, then add the new constraint.
+
+```sql
+ALTER TABLE toget_entries RENAME TO wishlist_entries;
+ALTER TABLE binder_slots DROP CONSTRAINT IF EXISTS binder_slots_source_check;  -- MUST come before UPDATE
+UPDATE binder_slots SET source = 'wishlist' WHERE source = 'toGet';
+ALTER TABLE binder_slots ADD CONSTRAINT binder_slots_source_check CHECK (source IN ('collection', 'wishlist'));
+```
+
+A rollback script (`001_rollback.sql`) was saved alongside it.
+
+---
+
+### Multi-Select "Add Cards" Modal (CardPickerModal rewrite)
+
+Replaced the old single-slot picker with a full multi-select modal. Old flow: click a slot → pick one card → done. New flow: click a slot → pick as many cards as you want → confirm → auto-fill empty slots forward from the clicked slot.
+
+**Why multi-select?** When filling a binder you often want to drop 9–16 cards at once. The old flow required clicking every slot individually — tedious.
+
+**New `TrayItem` interface (exported from `CardPickerModal.tsx`):**
+```typescript
+export interface TrayItem {
+  id: string;
+  entryId: string;
+  source: 'collection' | 'wishlist';
+  condition?: Condition;
+  cardName: string;
+  cardImageUrl: string;
+  pendingCard?: YGOCard;   // card that needs to be added to a list before placing
+  pendingSet?: YGOCardSet;
+}
+```
+
+**Three tabs:**
+
+- **Owned** — cards from the user's collection. Filter by search, rarity, and set. Clicking the tile uses the best available condition; clicking a condition chip uses that condition. Chips show available copy count. Best-condition chip gets a `--best` CSS modifier.
+- **Wishlist** — cards from the user's wishlist. Simpler tiles (no condition chips), fully clickable.
+- **All Cards** — full YGOPRODeck database search. Shows newest cards by default (empty query). After selecting a card, a configure panel appears to pick set, condition, and target list before placing in binder.
+
+**Collection tile consistency fix:** The old modal required clicking a condition chip on collection tiles, while wishlist tiles were fully clickable — inconsistent. Fixed: collection tiles are now fully clickable divs (adds best available condition); chips are still present for precision and stop propagation so they don't trigger the tile click.
+
+Implemented using `role="button"` on the div with `onClick`, and `e.stopPropagation()` on the chips container — avoids invalid button-in-button HTML nesting.
+
+**Auto-fill logic (in `BinderPage.tsx`):**
+
+When the user clicks a slot, pre-compute `emptySlotCount` — the number of empty slots from that slot forward. This caps how many cards can be selected in the modal. On confirm, walk the same forward path and assign one `TrayItem` per empty slot in order.
+
+```typescript
+const emptySlots: Array<{ pageId: string; slotIndex: number }> = [];
+let started = false;
+for (const p of binder.pages) {
+  for (let i = 0; i < slotCount; i++) {
+    if (!started) {
+      if (p.id === modal.pageId && i === modal.slotIndex) started = true;
+      else continue;
+    }
+    if (!p.slots[i]) emptySlots.push({ pageId: p.id, slotIndex: i });
+  }
+}
+for (let i = 0; i < Math.min(items.length, emptySlots.length); i++) {
+  dispatch({ type: 'ASSIGN_BINDER_SLOT', ... });
+}
+```
+
+**Tray:** Horizontal scrolling row of selected card thumbnails at the bottom. Each has a × remove button. "Add N to binder" is disabled when empty.
+
+---
+
+### "All Cards" Tab — Auto-Populate
+
+Changed `ygoprodeck.ts` to use `sort=new` when no search query is present:
+```typescript
+if (query.trim()) {
+  params.set('fname', query);
+} else {
+  params.set('sort', 'new'); // show newest cards instead of blank state
+}
+```
+
+Also removed debounce for initial/filter-only loads in the picker modal so the tab populates immediately on open.
+
+---
+
+### Vercel Build Error — Cascade TypeScript Failure
+
+After the rename, Vercel reported two errors on `SearchPage.tsx`:
+1. `Type '"ADD_TO_TO_GET"' is not assignable` — that file was missed during the rename
+2. `'id' does not exist in type 'BinderSlot'` — cascade: TypeScript couldn't match the invalid action type against the discriminated union and fell through to structural matching against `ASSIGN_BINDER_SLOT` (which has `entry: BinderSlot | null`), making `id` appear invalid
+
+**Lesson:** When you see unexpected type errors in a reducer dispatch, look for an invalid action type string first. One mistyped `type:` value can produce misleading secondary errors elsewhere in the same file.
+
+Fix: `'ADD_TO_TO_GET'` → `'ADD_TO_WISHLIST'` in `SearchPage.tsx` resolved both.
+
+---
+
 ## 6. What's Left to Build
 
 | Phase | Feature | Notes |
