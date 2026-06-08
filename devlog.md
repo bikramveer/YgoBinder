@@ -469,7 +469,123 @@ Resend's free tier only allows sending emails to the address used to sign up for
 
 ---
 
-## 5. What's Left to Build
+## 5. Custom Domain + Animations Phase (2026-06-07)
+
+### Custom Domain Setup
+
+**Domain:** `ygobindr.com`
+
+| Service | Config | Notes |
+|---|---|---|
+| Vercel | `ygobindr.com` → 308 → `www.ygobindr.com` (Production) | Vercel treats www as the Production deployment |
+| Railway | `FRONTEND_URL=https://www.ygobindr.com`, `api.ygobindr.com` CNAME → Railway URL | Must use www, not apex |
+| Resend | `EMAIL_FROM=YgoBinder <noreply@ygobindr.com>` in Railway env vars | Domain verified with DNS records |
+
+**War stories:**
+
+**CORS blocked after domain switch:** `FRONTEND_URL` in Railway had escaped quotes (`"\"https://ygobindr.com"`) and pointed to the apex domain instead of www. Vercel routes apex → 308 redirect → www, so CORS comparisons failed because the origin arriving at Railway was `https://www.ygobindr.com` but the allowed origin was `https://ygobindr.com`. Fix: `FRONTEND_URL=https://www.ygobindr.com` (no quotes, www prefix).
+
+**OTP emails not sending:** `EMAIL_FROM` env var wasn't set in Railway. The backend fell back to Resend's default sender `onboarding@resend.dev`, which is restricted to the Resend account owner's email on the free tier. Fix: add `EMAIL_FROM=YgoBinder <noreply@ygobindr.com>` to Railway env vars after verifying the domain in Resend.
+
+---
+
+### Landing Page
+
+**File:** `src/pages/LandingPage.tsx` + `src/pages/LandingPage.css`
+
+A public-facing entry point at `/`. Key decisions:
+
+**Guest CTA → `/search` directly:** "Start your collection →" navigates guests to the Search page without requiring an account. The goal is zero friction for new users — they can explore the app immediately and only need to sign up when they want data to persist across devices.
+
+**Auto-redirect logged-in users:** `useEffect` + `useAuth` check: if `user` is set, immediately navigate to `/dashboard`. The landing page is for people who aren't in yet.
+
+**No navbar on landing:** Landing page uses a sticky minimal header (logo + Sign in button), not the full app navbar. The app navbar only appears on authenticated/app routes inside `AppLayout`.
+
+**App.tsx restructure:** Added `AppLayout` component wrapping `<Outlet>`. Route `/` renders `LandingPage` outside `AppLayout` (no navbar); all other routes are children of `AppLayout`.
+
+---
+
+### Book-Style Binder Spread
+
+**Files:** `src/pages/BinderPage.tsx` (full rewrite), `src/pages/BinderPage.css`
+
+**Spread math:**
+- Spread 0: cover page (left) + `pages[0]` (right)
+- Spread n (n≥1): `pages[2n-1]` (left) + `pages[2n]` (right)
+- `spreadCount = 1 + Math.ceil(Math.max(0, pages.length - 1) / 2)`
+
+**Why always keep a page on spread 0's right side:** The first page is always visible when you open the binder. The cover is the left side of spread 0. If you have 0 pages, you just see the cover.
+
+**Page-turn animation (scaleX):**
+```
+animState: 'idle' | 'out' | 'in'
+flipDir: 'forward' | 'back'
+pendingSpreadIndex: number | null
+```
+Flow: `goToSpread(n)` → sets flipDir, pendingSpreadIndex, animState='out' → CSS applies flip-out class → `onAnimationEnd` fires → sets displayedSpreadIndex=pending, animState='in' → CSS applies flip-in → `onAnimationEnd` fires → animState='idle'.
+
+**Why scaleX not rotateY:** A true 3D `rotateY` requires the content on both sides of the page to be rendered simultaneously (front-face content + back-face content). With scaleX (collapse to 0 then expand from 0), you swap the content mid-animation. Simpler, no 3D transform layer, same visual feel at this scale.
+
+**transform-origin matters for direction feel:**
+- Forward (next page, content moves LEFT like turning a book): both out and in use `transform-origin: left center`
+- Back (previous page, content moves RIGHT): both use `transform-origin: right center`
+
+**Add pages → animates to new spread:** `addTwoPages()` awaits both API calls, then triggers the normal flip animation via `setFlipDir/setPendingSpreadIndex/setAnimState('out')` instead of jumping directly to the new spread.
+
+---
+
+### Binder Cover Feature
+
+**New files:** `src/components/Binder/binderCovers.ts`, `BinderCoverPicker.tsx`, `BinderCoverPicker.css`
+
+**9 preset covers:** Popular cards pulled from the YGOPRODeck CDN (`https://images.ygoprodeck.com/images/cards/{passcode}.jpg`): Dark Magician, Dark Magician Girl, Blue-Eyes White Dragon, Red-Eyes Black Dragon, Slifer the Sky Dragon, Obelisk the Tormentor, The Winged Dragon of Ra, Time Wizard, Pot of Greed.
+
+**Why flat card images instead of binder photos:** The original implementation used Konami binder product photos (angled 3D renders). Replaced with flat card art images — these are what users know and care about, and they're also what gets displayed in the spread view as the cover page, so they look natural in context.
+
+**DB change:** `ALTER TABLE binders ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500);` — must be run against Railway DB if setting up from an existing schema.
+
+**Cover in spread view:** The cover is absolutely positioned within its flex column (`.binder-spread__page--left { position: relative }`). This takes it out of flow so the flex line height is determined solely by the card grid on the right. Then the cover fills `inset: 0` — always matching the card page height regardless of viewport. `object-fit: contain` shows the full card without cropping.
+
+---
+
+### Site-Wide Animations
+
+**File:** `src/index.css`
+
+| Animation | Trigger | Implementation |
+|---|---|---|
+| Route fade-in | `.page` class | `fadeIn` keyframe: opacity 0→1 + translateY 6px→0, 0.2s, fill-mode: backwards |
+| Modal entrance | `.modal` class | `modalIn` keyframe: opacity 0→1 + scale 0.94→1, 0.18s |
+| Card slot hover lift | `.binder-slot:hover` | `translateY(-2px) scale(1.03)`, box-shadow, z-index: 1 |
+| Button press | `.btn:active:not(:disabled)` | `scale(0.96)` |
+
+**Critical: `fill-mode: backwards` not `both` on `.page`:**
+
+`animation-fill-mode: both` = `forwards + backwards`. `forwards` keeps the final keyframe values applied after the animation ends. If the final keyframe includes `transform: translateY(0)` or even `transform: none`, some browsers still create a CSS stacking context on the element while the animation fill is active. A stacking context on `.page` means any `position: fixed` child (like `.modal-backdrop`) is positioned relative to `.page` instead of the viewport — the backdrop clips to the page's max-width and doesn't cover the navbar.
+
+**Fix:** `fill-mode: backwards` — only applies the `from` keyframe before the animation starts (during any delay). After the animation completes, the fill is removed and the element returns to its natural styles. No persistent stacking context. ✓
+
+---
+
+### Bugs Fixed
+
+**CORS blocked on custom domain:** See Domain section above.
+
+**OTP not sending on custom domain:** See Domain section above.
+
+**Modal off-screen (showing only lower half):** The `.modal` class has `max-height: 90vh; overflow-y: auto`. The create binder modal with the cover picker exceeded the viewport height, and `align-items: center` on the backdrop centered a >100vh element with its top cut off. Fixed by making the cover picker `max-height: 220px; overflow-y: auto` so the modal fits within 90vh.
+
+**Modal backdrop not covering full screen:** The `fadeIn` animation's fill mode was creating a stacking context on `.page`. Fixed by switching from `fill-mode: both` to `fill-mode: backwards`. See Animation section above for full explanation.
+
+**Page flip direction reversed:** `transform-origin: right center` on `flip-out-forward` made pages appear to move right when going to the next spread. Swapped: forward animations use `left center`, back animations use `right center`.
+
+**Cover image too tall relative to card grid:** Cover's `<img>` has a natural intrinsic height of 614px (ygoprodeck card image size). With `align-items: stretch`, the flex line height = max(card grid height, cover intrinsic height) = 614px on smaller viewports, making the cover much taller than the card grid. Fixed by making the cover `position: absolute; inset: 0` inside a `position: relative` left page wrapper — takes the img out of flow, flex line is determined by the card grid alone.
+
+**TypeScript build errors (TS18047):** `dragSource?.pageId === pageId ? dragSource.slotIndex : null` — optional chain `?.` doesn't narrow `dragSource` to non-null in the ternary's true branch. Fixed with explicit null check: `dragSource !== null && dragSource.pageId === pageId ? dragSource.slotIndex : null`.
+
+---
+
+## 6. What's Left to Build
 
 | Phase | Feature | Notes |
 |---|---|---|
