@@ -71,7 +71,7 @@
 /* ── Spread layout ── */
 .binder-spread {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: center;
   gap: 0;
   will-change: transform, opacity;
@@ -89,6 +89,10 @@
 
 .binder-spread__page--center {
   max-width: 480px;
+}
+
+.binder-spread__page--left {
+  position: relative;
 }
 
 .binder-spread__page--left .binder-page-grid {
@@ -143,7 +147,7 @@
 
 .binder-spread--flip-out-forward {
   animation: spreadFlipOut 0.18s ease-in forwards;
-  transform-origin: right center;
+  transform-origin: left center;
 }
 .binder-spread--flip-in-forward {
   animation: spreadFlipIn 0.18s ease-out forwards;
@@ -151,7 +155,7 @@
 }
 .binder-spread--flip-out-back {
   animation: spreadFlipOut 0.18s ease-in forwards;
-  transform-origin: left center;
+  transform-origin: right center;
 }
 .binder-spread--flip-in-back {
   animation: spreadFlipIn 0.18s ease-out forwards;
@@ -160,8 +164,8 @@
 
 /* ── Binder cover page ── */
 .binder-cover {
-  width: 100%;
-  aspect-ratio: 1 / 1.3;
+  position: absolute;
+  inset: 0;
   border-radius: 8px;
   overflow: hidden;
   border: 2px solid var(--border);
@@ -174,7 +178,7 @@
 .binder-cover__img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 

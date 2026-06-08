@@ -177,16 +177,16 @@ export function BinderPage() {
   // ── Page management ────────────────────────────────────────────────────────
 
   const addTwoPages = async () => {
-    if (!binder || binder.pages.length >= BINDER_MAX_PAGES) return;
+    if (!binder || binder.pages.length >= BINDER_MAX_PAGES || animState !== 'idle') return;
     const currentCount = binder.pages.length;
     const newSpreadIndex = Math.ceil(currentCount / 2);
     await addBinderPage(binder.id, binder.cols * binder.rows);
     if (currentCount + 1 < BINDER_MAX_PAGES) {
       await addBinderPage(binder.id, binder.cols * binder.rows);
     }
-    setDisplayedSpreadIndex(newSpreadIndex);
-    setPendingSpreadIndex(null);
-    setAnimState('idle');
+    setFlipDir('forward');
+    setPendingSpreadIndex(newSpreadIndex);
+    setAnimState('out');
   };
 
   const removePage = () => {

@@ -27,9 +27,9 @@
 
 .cover-picker__grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  max-height: 260px;
+  max-height: 220px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -41,7 +41,7 @@
   cursor: pointer;
   background: var(--surface-2);
   padding: 0;
-  aspect-ratio: 1;
+  aspect-ratio: 421 / 614;
   transition: border-color 0.15s, transform 0.12s;
 }
 .cover-picker__item:hover {
