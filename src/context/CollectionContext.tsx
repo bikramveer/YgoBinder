@@ -21,6 +21,7 @@ type Action =
   | { type: 'ACQUIRE'; toGetId: string; acquiredCopies: ConditionCopy[] }
   | { type: 'CREATE_BINDER'; binder: Binder }
   | { type: 'RENAME_BINDER'; binderId: string; name: string }
+  | { type: 'SET_BINDER_COVER'; binderId: string; coverUrl: string | null }
   | { type: 'DELETE_BINDER'; binderId: string }
   | { type: 'ADD_BINDER_PAGE'; binderId: string; page: BinderPage }
   | { type: 'REMOVE_BINDER_PAGE'; binderId: string; pageId: string }
@@ -204,6 +205,14 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       };
 
+    case 'SET_BINDER_COVER':
+      return {
+        ...state,
+        binders: state.binders.map((b) =>
+          b.id === action.binderId ? { ...b, coverUrl: action.coverUrl ?? undefined } : b,
+        ),
+      };
+
     case 'DELETE_BINDER':
       return { ...state, binders: state.binders.filter((b) => b.id !== action.binderId) };
 
@@ -380,6 +389,10 @@ async function syncToApi(action: Action, prevState: AppState): Promise<void> {
       await binderApi.rename(action.binderId, action.name);
       break;
 
+    case 'SET_BINDER_COVER':
+      await binderApi.setCover(action.binderId, action.coverUrl);
+      break;
+
     case 'DELETE_BINDER':
       await binderApi.delete(action.binderId);
       break;
@@ -428,7 +441,7 @@ interface CollectionContextValue {
   showSyncPrompt: boolean;
   importLocalData: () => Promise<void>;
   dismissSyncPrompt: () => void;
-  createBinder: (name: string, cols: number, rows: number) => Promise<Binder | null>;
+  createBinder: (name: string, cols: number, rows: number, coverUrl?: string) => Promise<Binder | null>;
   addBinderPage: (binderId: string, slotCount: number) => Promise<BinderPage | null>;
 }
 
@@ -535,10 +548,10 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
-  const createBinder = useCallback(async (name: string, cols: number, rows: number): Promise<Binder | null> => {
+  const createBinder = useCallback(async (name: string, cols: number, rows: number, coverUrl?: string): Promise<Binder | null> => {
     if (isLoggedIn) {
       try {
-        const binder = await binderApi.create(name, cols, rows);
+        const binder = await binderApi.create(name, cols, rows, coverUrl);
         dispatch({ type: 'CREATE_BINDER', binder });
         return binder;
       } catch (err) {
@@ -552,6 +565,7 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
         name,
         cols,
         rows,
+        coverUrl,
         createdAt: new Date().toISOString(),
         pages: [{ id: localId(), slots: Array<BinderSlot | null>(slotCount).fill(null) }],
       };

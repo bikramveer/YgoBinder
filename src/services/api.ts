@@ -384,6 +384,7 @@ interface BackendBinder {
   name: string;
   cols: number;
   rows: number;
+  cover_url: string | null;
   created_at: string;
   pages: BackendBinderPage[];
 }
@@ -422,6 +423,7 @@ function backendBinderToFrontend(b: BackendBinder): Binder {
     name: b.name,
     cols: b.cols,
     rows: b.rows,
+    coverUrl: b.cover_url ?? undefined,
     createdAt: b.created_at,
     pages: b.pages.map((p) => backendPageToFrontend(p, slotCount)),
   };
@@ -435,10 +437,10 @@ export const binderApi = {
     return body.binders.map(backendBinderToFrontend);
   },
 
-  async create(name: string, cols: number, rows: number): Promise<Binder> {
+  async create(name: string, cols: number, rows: number, coverUrl?: string): Promise<Binder> {
     const res = await apiFetch('/binders', {
       method: 'POST',
-      body: JSON.stringify({ name, cols, rows, pageCount: 1 }),
+      body: JSON.stringify({ name, cols, rows, pageCount: 1, coverUrl: coverUrl ?? null }),
     });
     if (!res.ok) throw new Error('Failed to create binder.');
     const body = (await res.json()) as { binder: BackendBinder };
@@ -449,6 +451,13 @@ export const binderApi = {
     await apiFetch(`/binders/${binderId}`, {
       method: 'PUT',
       body: JSON.stringify({ name }),
+    });
+  },
+
+  async setCover(binderId: string, coverUrl: string | null): Promise<void> {
+    await apiFetch(`/binders/${binderId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ coverUrl }),
     });
   },
 

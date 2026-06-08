@@ -12,6 +12,9 @@
 
 .binder-slot:hover {
   border-color: var(--accent);
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+  z-index: 1;
 }
 
 .binder-slot--drag-over {

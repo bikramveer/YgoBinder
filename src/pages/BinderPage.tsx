@@ -4,42 +4,68 @@ import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
+import { BinderCoverPicker } from '../components/Binder/BinderCoverPicker';
 import type { Binder, BinderPage, BinderSlot, Condition } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import './BinderPage.css';
 
-
 type ModalState =
   | { kind: 'create' }
   | { kind: 'rename'; binderId: string }
+  | { kind: 'cover'; binderId: string }
   | { kind: 'delete'; binderId: string; binderName: string }
   | { kind: 'picker'; pageId: string; slotIndex: number }
   | { kind: 'card'; pageId: string; slotIndex: number; slotData: ResolvedSlotData }
   | { kind: 'removePage'; pageId: string }
   | null;
 
+type AnimState = 'idle' | 'out' | 'in';
+
 export function BinderPage() {
   const { state, dispatch, createBinder, addBinderPage } = useCollection();
 
   const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
-  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [displayedSpreadIndex, setDisplayedSpreadIndex] = useState(0);
+  const [pendingSpreadIndex, setPendingSpreadIndex] = useState<number | null>(null);
+  const [animState, setAnimState] = useState<AnimState>('idle');
+  const [flipDir, setFlipDir] = useState<'forward' | 'back'>('forward');
   const [modal, setModal] = useState<ModalState>(null);
   const [nameInput, setNameInput] = useState('');
   const [newCols, setNewCols] = useState(DEFAULT_BINDER_COLS);
   const [newRows, setNewRows] = useState(DEFAULT_BINDER_ROWS);
+  const [coverInput, setCoverInput] = useState<string | null>(null);
 
-  // Drag state
   const [dragSource, setDragSource] = useState<{ pageId: string; slotIndex: number } | null>(null);
-  const [dragOverSlot, setDragOverSlot] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<{ pageId: string; slotIndex: number } | null>(null);
 
   const binder: Binder | null =
     state.binders.find((b) => b.id === selectedBinderId) ??
     state.binders[0] ??
     null;
 
-  const safePageIndex = Math.min(currentPageIndex, Math.max(0, (binder?.pages.length ?? 1) - 1));
-  const currentPage: BinderPage | null = binder?.pages[safePageIndex] ?? null;
+  // ── Spread calculations ────────────────────────────────────────────────────
+  // Spread 0: cover (left) + pages[0] (right)
+  // Spread n (n≥1): pages[2n-1] (left) + pages[2n] (right)
+
+  const totalCardPages = binder?.pages.length ?? 0;
+  const spreadCount = 1 + Math.ceil(Math.max(0, totalCardPages - 1) / 2);
+  const maxSpreadIndex = spreadCount - 1;
+  const safeSpreadIndex = Math.min(displayedSpreadIndex, maxSpreadIndex);
+
+  function getLeftPage(spreadIdx: number): BinderPage | null {
+    if (spreadIdx === 0 || !binder) return null; // cover shown via JSX
+    return binder.pages[spreadIdx * 2 - 1] ?? null;
+  }
+
+  function getRightPage(spreadIdx: number): BinderPage | null {
+    if (!binder) return null;
+    return binder.pages[spreadIdx * 2] ?? null;
+  }
+
+  const isSpread0 = safeSpreadIndex === 0;
+  const leftPage = getLeftPage(safeSpreadIndex);
+  const rightPage = getRightPage(safeSpreadIndex);
 
   function resolveSlot(slot: BinderSlot | null): ResolvedSlotData | null {
     if (!slot) return null;
@@ -58,25 +84,55 @@ export function BinderPage() {
   }
 
   const slotCount = binder ? binder.cols * binder.rows : DEFAULT_BINDER_COLS * DEFAULT_BINDER_ROWS;
-  const resolvedSlots: (ResolvedSlotData | null)[] = currentPage
-    ? currentPage.slots.map(resolveSlot)
-    : Array<null>(slotCount).fill(null);
 
-  // ── Binder management ────────────────────────────────────────────────────────
+  function resolvePageSlots(page: BinderPage | null): (ResolvedSlotData | null)[] {
+    if (!page) return Array<null>(slotCount).fill(null);
+    return page.slots.map(resolveSlot);
+  }
+
+  // ── Flip animation ─────────────────────────────────────────────────────────
+
+  function goToSpread(target: number) {
+    if (animState !== 'idle' || !binder) return;
+    const clamped = Math.max(0, Math.min(target, maxSpreadIndex));
+    if (clamped === safeSpreadIndex) return;
+    setFlipDir(clamped > safeSpreadIndex ? 'forward' : 'back');
+    setPendingSpreadIndex(clamped);
+    setAnimState('out');
+  }
+
+  function handleAnimEnd() {
+    if (animState === 'out' && pendingSpreadIndex !== null) {
+      setDisplayedSpreadIndex(pendingSpreadIndex);
+      setAnimState('in');
+    } else if (animState === 'in') {
+      setPendingSpreadIndex(null);
+      setAnimState('idle');
+    }
+  }
+
+  const spreadClass = [
+    'binder-spread',
+    animState === 'out' ? `binder-spread--flip-out-${flipDir}` : '',
+    animState === 'in' ? `binder-spread--flip-in-${flipDir}` : '',
+  ].filter(Boolean).join(' ');
+
+  // ── Binder management ──────────────────────────────────────────────────────
 
   const openCreate = () => {
     setNameInput('');
     setNewCols(DEFAULT_BINDER_COLS);
     setNewRows(DEFAULT_BINDER_ROWS);
+    setCoverInput(null);
     setModal({ kind: 'create' });
   };
 
   const confirmCreate = async () => {
     if (!nameInput.trim()) return;
-    const binder = await createBinder(nameInput.trim(), newCols, newRows);
-    if (binder) {
-      setSelectedBinderId(binder.id);
-      setCurrentPageIndex(0);
+    const newBinder = await createBinder(nameInput.trim(), newCols, newRows, coverInput ?? undefined);
+    if (newBinder) {
+      setSelectedBinderId(newBinder.id);
+      setDisplayedSpreadIndex(0);
     }
     setModal(null);
   };
@@ -93,6 +149,18 @@ export function BinderPage() {
     setModal(null);
   };
 
+  const openCover = () => {
+    if (!binder) return;
+    setCoverInput(binder.coverUrl ?? null);
+    setModal({ kind: 'cover', binderId: binder.id });
+  };
+
+  const confirmCover = () => {
+    if (modal?.kind !== 'cover') return;
+    dispatch({ type: 'SET_BINDER_COVER', binderId: modal.binderId, coverUrl: coverInput });
+    setModal(null);
+  };
+
   const openDelete = () => {
     if (!binder) return;
     setModal({ kind: 'delete', binderId: binder.id, binderName: binder.name });
@@ -102,45 +170,55 @@ export function BinderPage() {
     if (modal?.kind !== 'delete') return;
     dispatch({ type: 'DELETE_BINDER', binderId: modal.binderId });
     setSelectedBinderId(null);
-    setCurrentPageIndex(0);
+    setDisplayedSpreadIndex(0);
     setModal(null);
   };
 
-  // ── Page management ──────────────────────────────────────────────────────────
+  // ── Page management ────────────────────────────────────────────────────────
 
-  const addPage = async () => {
-    if (!binder || binder.pages.length >= BINDER_MAX_PAGES) return;
-    const nextIndex = binder.pages.length;
-    const page = await addBinderPage(binder.id, binder.cols * binder.rows);
-    if (page) setCurrentPageIndex(nextIndex);
+  const addTwoPages = async () => {
+    if (!binder || binder.pages.length >= BINDER_MAX_PAGES || animState !== 'idle') return;
+    const currentCount = binder.pages.length;
+    const newSpreadIndex = Math.ceil(currentCount / 2);
+    await addBinderPage(binder.id, binder.cols * binder.rows);
+    if (currentCount + 1 < BINDER_MAX_PAGES) {
+      await addBinderPage(binder.id, binder.cols * binder.rows);
+    }
+    setFlipDir('forward');
+    setPendingSpreadIndex(newSpreadIndex);
+    setAnimState('out');
   };
 
   const removePage = () => {
-    if (!binder || !currentPage) return;
-    const hasCards = currentPage.slots.some((s) => s !== null);
-    if (hasCards) {
-      setModal({ kind: 'removePage', pageId: currentPage.id });
+    if (!binder || binder.pages.length <= 1) return;
+    const lastPage = binder.pages[binder.pages.length - 1];
+    if (lastPage.slots.some((s) => s !== null)) {
+      setModal({ kind: 'removePage', pageId: lastPage.id });
     } else {
-      doRemovePage(currentPage.id);
+      doRemovePage(lastPage.id);
     }
   };
 
   const doRemovePage = (pageId: string) => {
     if (!binder || binder.pages.length <= 1) return;
     dispatch({ type: 'REMOVE_BINDER_PAGE', binderId: binder.id, pageId });
-    setCurrentPageIndex((i) => Math.max(0, i - 1));
+    const newTotal = binder.pages.length - 1;
+    const newMax = Math.max(0, Math.ceil(Math.max(0, newTotal - 1) / 2));
+    setDisplayedSpreadIndex((i) => Math.min(i, newMax));
     setModal(null);
   };
 
-  // ── Slot interactions ────────────────────────────────────────────────────────
+  // ── Slot interactions ──────────────────────────────────────────────────────
 
-  const handleSlotClick = (slotIndex: number) => {
-    if (!binder || !currentPage) return;
-    const resolved = resolvedSlots[slotIndex];
+  const handleSlotClick = (pageId: string, slotIndex: number) => {
+    if (!binder) return;
+    const page = binder.pages.find((p) => p.id === pageId);
+    if (!page) return;
+    const resolved = resolveSlot(page.slots[slotIndex] ?? null);
     if (resolved) {
-      setModal({ kind: 'card', pageId: currentPage.id, slotIndex, slotData: resolved });
+      setModal({ kind: 'card', pageId, slotIndex, slotData: resolved });
     } else {
-      setModal({ kind: 'picker', pageId: currentPage.id, slotIndex });
+      setModal({ kind: 'picker', pageId, slotIndex });
     }
   };
 
@@ -168,26 +246,25 @@ export function BinderPage() {
     setModal(null);
   };
 
-  // ── Drag and drop ────────────────────────────────────────────────────────────
+  // ── Drag and drop ──────────────────────────────────────────────────────────
 
-  const handleDragStart = (e: React.DragEvent, slotIndex: number) => {
-    if (!currentPage) return;
-    setDragSource({ pageId: currentPage.id, slotIndex });
+  const handleDragStart = (e: React.DragEvent, pageId: string, slotIndex: number) => {
+    setDragSource({ pageId, slotIndex });
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', String(slotIndex));
   };
 
-  const handleDragOver = (e: React.DragEvent, slotIndex: number) => {
+  const handleDragOver = (e: React.DragEvent, pageId: string, slotIndex: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setDragOverSlot(slotIndex);
+    setDragOver({ pageId, slotIndex });
   };
 
-  const handleDrop = (e: React.DragEvent, slotIndex: number) => {
+  const handleDrop = (e: React.DragEvent, pageId: string, slotIndex: number) => {
     e.preventDefault();
-    setDragOverSlot(null);
-    if (!dragSource || !binder || !currentPage) return;
-    if (dragSource.slotIndex === slotIndex) {
+    setDragOver(null);
+    if (!dragSource || !binder) return;
+    if (dragSource.pageId === pageId && dragSource.slotIndex === slotIndex) {
       setDragSource(null);
       return;
     }
@@ -196,7 +273,7 @@ export function BinderPage() {
       binderId: binder.id,
       fromPageId: dragSource.pageId,
       fromSlot: dragSource.slotIndex,
-      toPageId: currentPage.id,
+      toPageId: pageId,
       toSlot: slotIndex,
     });
     setDragSource(null);
@@ -204,16 +281,43 @@ export function BinderPage() {
 
   const handleDragLeave = (e: React.DragEvent) => {
     if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) {
-      setDragOverSlot(null);
+      setDragOver(null);
     }
   };
 
   const handleDragEnd = () => {
     setDragSource(null);
-    setDragOverSlot(null);
+    setDragOver(null);
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  function makeGridProps(page: BinderPage | null, pageId: string | undefined) {
+    return {
+      cols: binder!.cols,
+      rows: binder!.rows,
+      resolvedSlots: resolvePageSlots(page),
+      dragSourceSlot: dragSource !== null && dragSource.pageId === pageId ? dragSource.slotIndex : null,
+      dragOverSlot: dragOver !== null && dragOver.pageId === pageId ? dragOver.slotIndex : null,
+      onSlotClick: (slotIndex: number) => handleSlotClick(pageId!, slotIndex),
+      onDragStart: (e: React.DragEvent, slotIndex: number) => handleDragStart(e, pageId!, slotIndex),
+      onDragOver: (e: React.DragEvent, slotIndex: number) => handleDragOver(e, pageId!, slotIndex),
+      onDrop: (e: React.DragEvent, slotIndex: number) => handleDrop(e, pageId!, slotIndex),
+      onDragLeave: handleDragLeave,
+      onDragEnd: handleDragEnd,
+    };
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  const activeSpreadIndex = pendingSpreadIndex ?? safeSpreadIndex;
+
+  const pageLabel = (() => {
+    if (activeSpreadIndex === 0) {
+      return totalCardPages > 0 ? `Cover + Page 1 of ${totalCardPages}` : 'Cover';
+    }
+    const l = activeSpreadIndex * 2;
+    const r = Math.min(activeSpreadIndex * 2 + 1, totalCardPages);
+    return l === r ? `Page ${l} of ${totalCardPages}` : `Pages ${l}–${r} of ${totalCardPages}`;
+  })();
 
   return (
     <main className="page">
@@ -229,7 +333,9 @@ export function BinderPage() {
             value={binder?.id ?? ''}
             onChange={(e) => {
               setSelectedBinderId(e.target.value);
-              setCurrentPageIndex(0);
+              setDisplayedSpreadIndex(0);
+              setPendingSpreadIndex(null);
+              setAnimState('idle');
             }}
           >
             {state.binders.map((b) => (
@@ -248,6 +354,7 @@ export function BinderPage() {
           {binder && (
             <>
               <button className="btn btn-ghost" onClick={openRename}>Rename</button>
+              <button className="btn btn-ghost" onClick={openCover}>Cover</button>
               <button className="btn btn-danger" onClick={openDelete}>Delete</button>
             </>
           )}
@@ -264,35 +371,34 @@ export function BinderPage() {
         </div>
       )}
 
-      {binder && currentPage && (
+      {binder && (
         <>
+          {/* Navigation bar */}
           <div className="binder-page-nav">
             <button
               className="binder-page-nav__arrow"
-              disabled={safePageIndex === 0}
-              onClick={() => setCurrentPageIndex((i) => i - 1)}
-              aria-label="Previous page"
+              disabled={activeSpreadIndex === 0 || animState !== 'idle'}
+              onClick={() => goToSpread(activeSpreadIndex - 1)}
+              aria-label="Previous spread"
             >
               ‹
             </button>
-            <span className="binder-page-nav__label">
-              Page {safePageIndex + 1} of {binder.pages.length}
-            </span>
+            <span className="binder-page-nav__label">{pageLabel}</span>
             <button
               className="binder-page-nav__arrow"
-              disabled={safePageIndex >= binder.pages.length - 1}
-              onClick={() => setCurrentPageIndex((i) => i + 1)}
-              aria-label="Next page"
+              disabled={activeSpreadIndex >= maxSpreadIndex || animState !== 'idle'}
+              onClick={() => goToSpread(activeSpreadIndex + 1)}
+              aria-label="Next spread"
             >
               ›
             </button>
             <button
               className="btn btn-ghost"
-              onClick={addPage}
+              onClick={addTwoPages}
               disabled={binder.pages.length >= BINDER_MAX_PAGES}
               style={{ fontSize: '0.78rem' }}
             >
-              + Page
+              + Pages
             </button>
             {binder.pages.length > 1 && (
               <button
@@ -305,19 +411,43 @@ export function BinderPage() {
             )}
           </div>
 
-          <BinderPageGrid
-            cols={binder.cols}
-            rows={binder.rows}
-            resolvedSlots={resolvedSlots}
-            dragSourceSlot={dragSource?.pageId === currentPage.id ? dragSource.slotIndex : null}
-            dragOverSlot={dragOverSlot}
-            onSlotClick={handleSlotClick}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onDragLeave={handleDragLeave}
-            onDragEnd={handleDragEnd}
-          />
+          {/* Spread view */}
+          <div className="binder-spread-wrapper">
+            <div className={spreadClass} onAnimationEnd={handleAnimEnd}>
+              {/* Left side */}
+              {isSpread0 ? (
+                <div className="binder-spread__page binder-spread__page--left">
+                  <div className="binder-cover">
+                    {binder.coverUrl ? (
+                      <img src={binder.coverUrl} alt="Binder cover" className="binder-cover__img" />
+                    ) : (
+                      <div className="binder-cover__title">
+                        <span className="binder-cover__name">{binder.name}</span>
+                        <span className="binder-cover__sub">{binder.cols}×{binder.rows}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="binder-spread__page binder-spread__page--left">
+                  {leftPage
+                    ? <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />
+                    : <div className="binder-spread__empty-page" />
+                  }
+                </div>
+              )}
+
+              <div className="binder-spread__spine" />
+
+              {/* Right side — always a card page */}
+              <div className="binder-spread__page binder-spread__page--right">
+                {rightPage
+                  ? <BinderPageGrid {...makeGridProps(rightPage, rightPage.id)} />
+                  : <div className="binder-spread__empty-page" />
+                }
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -325,7 +455,7 @@ export function BinderPage() {
 
       {modal?.kind === 'create' && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>New Binder</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -347,6 +477,11 @@ export function BinderPage() {
                   rows={newRows}
                   onChange={(c, r) => { setNewCols(c); setNewRows(r); }}
                 />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cover image (optional)</span>
+                <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
               </div>
 
               <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
@@ -378,6 +513,19 @@ export function BinderPage() {
                   Rename
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal?.kind === 'cover' && (
+        <div className="modal-backdrop" onClick={() => setModal(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Change Cover</h2>
+            <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
+              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={confirmCover}>Save</button>
             </div>
           </div>
         </div>
