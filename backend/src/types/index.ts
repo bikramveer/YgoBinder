@@ -26,7 +26,7 @@ export interface CollectionEntry {
   date_added: string;
 }
 
-export interface ToGetEntry {
+export interface WishlistEntry {
   id: string;
   user_id: number;
   card_id: number;
@@ -43,7 +43,7 @@ export interface ToGetEntry {
 export interface BinderSlot {
   position: number;
   entry_key: string | null;
-  source: 'collection' | 'toGet' | null;
+  source: 'collection' | 'wishlist' | null;
   condition: Condition | null;
 }
 

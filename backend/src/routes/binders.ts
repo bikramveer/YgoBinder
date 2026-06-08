@@ -26,7 +26,7 @@ const UpdateBinderSchema = z.object({
 
 const SlotSchema = z.object({
   entryKey: z.string().max(255).nullable(),
-  source: z.enum(['collection', 'toGet']).nullable(),
+  source: z.enum(['collection', 'wishlist']).nullable(),
   condition: ConditionEnum.nullable(),
 });
 

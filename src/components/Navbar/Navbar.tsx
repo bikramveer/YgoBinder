@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/search', label: 'Search' },
   { to: '/collection', label: 'Collection' },
-  { to: '/to-get', label: 'To Get' },
+  { to: '/wishlist', label: 'Wishlist' },
   { to: '/binder', label: 'Binders' },
 ];
 

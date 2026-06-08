@@ -4,7 +4,7 @@ import './BinderSlot.css';
 
 export interface ResolvedSlotData {
   entryId: string;
-  source: 'collection' | 'toGet';
+  source: 'collection' | 'wishlist';
   cardName: string;
   cardImageUrl: string;
   condition?: Condition;
@@ -56,12 +56,12 @@ export function BinderSlot({
       {data ? (
         <>
           <img
-            className={`binder-slot__img${data.source === 'toGet' ? ' binder-slot__img--toget' : ''}`}
+            className={`binder-slot__img${data.source === 'wishlist' ? ' binder-slot__img--wishlist' : ''}`}
             src={data.cardImageUrl}
             alt={data.cardName}
           />
-          {data.source === 'toGet' && (
-            <span className="binder-slot__badge binder-slot__badge--toget">Want</span>
+          {data.source === 'wishlist' && (
+            <span className="binder-slot__badge binder-slot__badge--wishlist">Want</span>
           )}
           {data.source === 'collection' && data.condition && (
             <span className="binder-slot__badge binder-slot__badge--condition">{data.condition}</span>

@@ -8,7 +8,7 @@ import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { SearchPage } from './pages/SearchPage';
 import { CollectionPage } from './pages/CollectionPage';
-import { ToGetPage } from './pages/ToGetPage';
+import { WishlistPage } from './pages/WishlistPage';
 import { BinderPage } from './pages/BinderPage';
 
 function AppLayout() {
@@ -33,7 +33,7 @@ export default function App() {
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/search" element={<SearchPage />} />
               <Route path="/collection" element={<CollectionPage />} />
-              <Route path="/to-get" element={<ToGetPage />} />
+              <Route path="/wishlist" element={<WishlistPage />} />
               <Route path="/binder" element={<BinderPage />} />
             </Route>
           </Routes>

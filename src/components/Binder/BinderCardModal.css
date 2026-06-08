@@ -55,7 +55,7 @@
   color: #fff;
 }
 
-.binder-card-modal__badge--toget {
+.binder-card-modal__badge--wishlist {
   background: var(--accent);
   color: #000;
 }

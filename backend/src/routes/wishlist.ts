@@ -36,21 +36,21 @@ const AcquireSchema = z.object({
 
 // ── Routes ───────────────────────────────────────────────────────────────────
 
-// GET /toget
+// GET /wishlist
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM toget_entries WHERE user_id = $1 ORDER BY date_added DESC',
+      'SELECT * FROM wishlist_entries WHERE user_id = $1 ORDER BY date_added DESC',
       [req.user!.userId]
     );
-    res.json({ toGet: result.rows });
+    res.json({ wishlist: result.rows });
   } catch (err) {
-    console.error('Get toget error:', err);
+    console.error('Get wishlist error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
-// POST /toget
+// POST /wishlist
 router.post('/', async (req: Request, res: Response) => {
   const parsed = EntrySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -62,7 +62,7 @@ router.post('/', async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO toget_entries
+      `INSERT INTO wishlist_entries
          (user_id, entry_key, card_id, card_name, card_image_url, set_name, set_code, rarity, condition, quantity)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        ON CONFLICT (user_id, entry_key)
@@ -73,12 +73,12 @@ router.post('/', async (req: Request, res: Response) => {
 
     res.status(201).json({ entry: result.rows[0] });
   } catch (err) {
-    console.error('Add to toget error:', err);
+    console.error('Add to wishlist error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
-// PUT /toget/:id
+// PUT /wishlist/:id
 router.put('/:id', async (req: Request, res: Response) => {
   const parsed = UpdateSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -98,7 +98,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   try {
     const result = await pool.query(
-      `UPDATE toget_entries
+      `UPDATE wishlist_entries
        SET ${setClauses.join(', ')}
        WHERE id = $${i++} AND user_id = $${i}
        RETURNING *`,
@@ -112,16 +112,16 @@ router.put('/:id', async (req: Request, res: Response) => {
 
     res.json({ entry: result.rows[0] });
   } catch (err) {
-    console.error('Update toget error:', err);
+    console.error('Update wishlist error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
-// DELETE /toget/:id
+// DELETE /wishlist/:id
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const result = await pool.query(
-      'DELETE FROM toget_entries WHERE id = $1 AND user_id = $2 RETURNING id',
+      'DELETE FROM wishlist_entries WHERE id = $1 AND user_id = $2 RETURNING id',
       [req.params.id, req.user!.userId]
     );
 
@@ -132,13 +132,13 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
     res.json({ message: 'Entry removed.' });
   } catch (err) {
-    console.error('Delete toget error:', err);
+    console.error('Delete wishlist error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });
 
-// POST /toget/:id/acquire
-// Moves acquired cards into the collection, removes toget entry if fully fulfilled
+// POST /wishlist/:id/acquire
+// Moves acquired cards into the collection, removes wishlist entry if fully fulfilled
 router.post('/:id/acquire', async (req: Request, res: Response) => {
   const parsed = AcquireSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -152,18 +152,18 @@ router.post('/:id/acquire', async (req: Request, res: Response) => {
   try {
     await client.query('BEGIN');
 
-    const togetResult = await client.query(
-      'SELECT * FROM toget_entries WHERE id = $1 AND user_id = $2',
+    const wishlistResult = await client.query(
+      'SELECT * FROM wishlist_entries WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user!.userId]
     );
 
-    if (togetResult.rows.length === 0) {
+    if (wishlistResult.rows.length === 0) {
       await client.query('ROLLBACK');
       res.status(404).json({ error: 'Entry not found.' });
       return;
     }
 
-    const toget = togetResult.rows[0];
+    const entry = wishlistResult.rows[0];
 
     // Add to collection (merge quantities if same condition already exists)
     await client.query(
@@ -172,8 +172,8 @@ router.post('/:id/acquire', async (req: Request, res: Response) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (user_id, card_id, set_code, rarity, condition)
        DO UPDATE SET quantity = collection_entries.quantity + EXCLUDED.quantity`,
-      [req.user!.userId, toget.card_id, toget.card_name, toget.card_image_url,
-       toget.set_name, toget.set_code, toget.rarity, condition, quantity]
+      [req.user!.userId, entry.card_id, entry.card_name, entry.card_image_url,
+       entry.set_name, entry.set_code, entry.rarity, condition, quantity]
     );
 
     // Sum all owned copies of this card+set+rarity (any condition)
@@ -181,14 +181,14 @@ router.post('/:id/acquire', async (req: Request, res: Response) => {
       `SELECT COALESCE(SUM(quantity), 0)::int AS total
        FROM collection_entries
        WHERE user_id = $1 AND card_id = $2 AND set_code = $3 AND rarity = $4`,
-      [req.user!.userId, toget.card_id, toget.set_code, toget.rarity]
+      [req.user!.userId, entry.card_id, entry.set_code, entry.rarity]
     );
 
     const totalOwned: number = ownedResult.rows[0].total;
-    const removed = totalOwned >= toget.quantity;
+    const removed = totalOwned >= entry.quantity;
 
     if (removed) {
-      await client.query('DELETE FROM toget_entries WHERE id = $1', [req.params.id]);
+      await client.query('DELETE FROM wishlist_entries WHERE id = $1', [req.params.id]);
     }
 
     await client.query('COMMIT');

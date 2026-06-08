@@ -6,7 +6,7 @@ import './AddToListForm.css';
 interface Props {
   card: YGOCard;
   preselectedSet?: YGOCardSet;
-  mode: 'collection' | 'toget';
+  mode: 'collection' | 'wishlist';
   onSubmit: (set: YGOCardSet, condition: Condition, quantity: number) => void;
   onCancel: () => void;
 }
@@ -30,7 +30,7 @@ export function AddToListForm({ card, preselectedSet, mode, onSubmit, onCancel }
   return (
     <div className="add-form">
       <div className="add-form__title">
-        {mode === 'collection' ? 'Add to Collection' : 'Add to To Get'}
+        {mode === 'collection' ? 'Add to Collection' : 'Add to Wishlist'}
       </div>
       <div className="add-form__subtitle">{card.name}</div>
 
@@ -77,7 +77,7 @@ export function AddToListForm({ card, preselectedSet, mode, onSubmit, onCancel }
         <div className="add-form__actions">
           <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
           <button type="submit" className="btn btn-primary" disabled={!selectedSet}>
-            {mode === 'collection' ? 'Add to Collection' : 'Add to To Get'}
+            {mode === 'collection' ? 'Add to Collection' : 'Add to Wishlist'}
           </button>
         </div>
       </form>

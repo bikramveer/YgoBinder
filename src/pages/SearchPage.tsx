@@ -35,7 +35,7 @@ const RARITIES = [
   { value: 'Prismatic Secret Rare', label: 'Prismatic Secret Rare' },
 ];
 
-type QuickAddModal = { card: YGOCard; set?: YGOCardSet; mode: 'collection' | 'toget' } | null;
+type QuickAddModal = { card: YGOCard; set?: YGOCardSet; mode: 'collection' | 'wishlist' } | null;
 
 export function SearchPage() {
   const [query, setQuery] = useState('');
@@ -77,7 +77,7 @@ export function SearchPage() {
       });
     } else {
       dispatch({
-        type: 'ADD_TO_TO_GET',
+        type: 'ADD_TO_WISHLIST',
         entry: {
           id: entryId,
           cardId: card.id,

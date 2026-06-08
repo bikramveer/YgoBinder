@@ -47,8 +47,8 @@ CREATE TABLE IF NOT EXISTS collection_entries (
   UNIQUE (user_id, entry_key, condition)
 );
 
--- To Get entries — one row per user + card + set + rarity (condition = minimum acceptable)
-CREATE TABLE IF NOT EXISTS toget_entries (
+-- Wishlist entries — one row per user + card + set + rarity (condition = minimum acceptable)
+CREATE TABLE IF NOT EXISTS wishlist_entries (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   entry_key     VARCHAR(255) NOT NULL, -- frontend composite key: "${cardId}-${setCode}-${rarityCode}"
@@ -82,13 +82,13 @@ CREATE TABLE IF NOT EXISTS binder_pages (
   UNIQUE (binder_id, page_number)
 );
 
--- Binder slots — each slot on a page holds a planned card (collection or to-get)
+-- Binder slots — each slot on a page holds a planned card (collection or wishlist)
 CREATE TABLE IF NOT EXISTS binder_slots (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   page_id     UUID NOT NULL REFERENCES binder_pages(id) ON DELETE CASCADE,
   position    INTEGER NOT NULL,
   entry_key   VARCHAR(255),
-  source      VARCHAR(20) CHECK (source IN ('collection', 'toGet')),
+  source      VARCHAR(20) CHECK (source IN ('collection', 'wishlist')),
   condition   VARCHAR(10) CHECK (condition IN ('NM', 'LP', 'MP', 'HP', 'DMG')),
   UNIQUE (page_id, position)
 );
@@ -115,7 +115,7 @@ CREATE TABLE IF NOT EXISTS exchange_rates (
 
 -- Index for fast per-user lookups
 CREATE INDEX IF NOT EXISTS idx_collection_user ON collection_entries(user_id);
-CREATE INDEX IF NOT EXISTS idx_toget_user ON toget_entries(user_id);
+CREATE INDEX IF NOT EXISTS idx_wishlist_user ON wishlist_entries(user_id);
 CREATE INDEX IF NOT EXISTS idx_binders_user ON binders(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_tokens(token_hash);
 CREATE INDEX IF NOT EXISTS idx_otps_user ON email_otps(user_id);
@@ -127,7 +127,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS preferred_currency VARCHAR(10) NOT NU
 -- Binder slots schema migration (entry_key + source replaces entry_id UUID FK)
 ALTER TABLE binder_slots DROP COLUMN IF EXISTS entry_id;
 ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS entry_key VARCHAR(255);
-ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS source VARCHAR(20) CHECK (source IN ('collection', 'toGet'));
+ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS source VARCHAR(20) CHECK (source IN ('collection', 'wishlist'));
 
 -- Binder cover image URL
 ALTER TABLE binders ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500);

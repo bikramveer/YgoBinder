@@ -2,34 +2,63 @@ import { useState, useEffect, useMemo } from 'react';
 import { useCollection } from '../../context/CollectionContext';
 import { searchCards } from '../../services/ygoprodeck';
 import { CONDITION_ORDER, CONDITION_LABELS } from '../../types';
-import type { Condition, CollectionEntry, ToGetEntry, YGOCard, YGOCardSet } from '../../types';
+import type { Condition, YGOCard, YGOCardSet } from '../../types';
 import './CardPickerModal.css';
 
-type Tab = 'lists' | 'addNew';
+type Tab = 'owned' | 'wishlist' | 'all';
+
+export interface TrayItem {
+  id: string;
+  entryId: string;
+  source: 'collection' | 'wishlist';
+  condition?: Condition;
+  cardName: string;
+  cardImageUrl: string;
+  // Present for items from the All Cards tab that need to be added to collection/wishlist on confirm
+  pendingCard?: YGOCard;
+  pendingSet?: YGOCardSet;
+}
+
+interface PendingConfig {
+  card: YGOCard;
+  setIdx: number;
+  condition: Condition;
+  targetList: 'collection' | 'wishlist';
+}
 
 interface Props {
-  onSelect: (entryId: string, source: 'collection' | 'toGet', condition?: Condition) => void;
+  emptySlotCount: number;
+  onConfirm: (items: TrayItem[]) => void;
   onCancel: () => void;
 }
 
-export function CardPickerModal({ onSelect, onCancel }: Props) {
+function cardMatchesType(card: YGOCard, filter: string): boolean {
+  if (!filter) return true;
+  if (filter === 'spell') return card.frameType === 'spell';
+  if (filter === 'trap') return card.frameType === 'trap';
+  if (filter === 'monster') return !['spell', 'trap', 'token', 'skill'].includes(card.frameType);
+  return true;
+}
+
+export function CardPickerModal({ emptySlotCount, onConfirm, onCancel }: Props) {
   const { state, dispatch } = useCollection();
-  const [tab, setTab] = useState<Tab>('lists');
-  const [listSearch, setListSearch] = useState('');
 
-  // "Add new" tab state
-  const [addQuery, setAddQuery] = useState('');
-  const [addResults, setAddResults] = useState<YGOCard[]>([]);
-  const [addLoading, setAddLoading] = useState(false);
-  const [configCard, setConfigCard] = useState<YGOCard | null>(null);
-  const [configSource, setConfigSource] = useState<'collection' | 'toGet'>('collection');
-  const [configSetIdx, setConfigSetIdx] = useState(0);
-  const [configCondition, setConfigCondition] = useState<Condition>('NM');
+  const [tab, setTab] = useState<Tab>('owned');
+  const [search, setSearch] = useState('');
+  const [rarityFilter, setRarityFilter] = useState('');
+  const [setNameFilter, setSetNameFilter] = useState('');
+  const [allQuery, setAllQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [allResults, setAllResults] = useState<YGOCard[]>([]);
+  const [allLoading, setAllLoading] = useState(false);
+  const [pendingConfig, setPendingConfig] = useState<PendingConfig | null>(null);
+  const [tray, setTray] = useState<TrayItem[]>([]);
 
-  // Compute binder slot usage counts for used-up filtering
+  // ── Usage tracking ────────────────────────────────────────────────────────
+
   const usageMap = useMemo(() => {
-    const coll = new Map<string, number>(); // `${entryId}:${condition}` → count
-    const tog = new Map<string, number>();  // entryId → count
+    const coll = new Map<string, number>();
+    const tog = new Map<string, number>();
     for (const binder of state.binders) {
       for (const page of binder.pages) {
         for (const slot of page.slots) {
@@ -51,371 +80,523 @@ export function CardPickerModal({ onSelect, onCancel }: Props) {
     if (!entry) return 0;
     const copy = entry.copies.find((c) => c.condition === condition);
     if (!copy) return 0;
-    const used = usageMap.coll.get(`${entryId}:${condition}`) ?? 0;
-    return Math.max(0, copy.quantity - used);
+    const inBinders = usageMap.coll.get(`${entryId}:${condition}`) ?? 0;
+    const inTray = tray.filter((t) => t.entryId === entryId && t.condition === condition).length;
+    return Math.max(0, copy.quantity - inBinders - inTray);
   }
 
-  function togAvailable(entryId: string): number {
-    const entry = state.toGet.find((e) => e.id === entryId);
+  function wishlistAvailable(entryId: string): number {
+    const entry = state.wishlist.find((e) => e.id === entryId);
     if (!entry) return 0;
-    const used = usageMap.tog.get(entryId) ?? 0;
-    return Math.max(0, entry.desiredQuantity - used);
+    const inBinders = usageMap.tog.get(entryId) ?? 0;
+    const inTray = tray.filter((t) => t.entryId === entryId && t.source === 'wishlist').length;
+    return Math.max(0, entry.desiredQuantity - inBinders - inTray);
   }
 
-  // Filter for lists tab
-  const q = listSearch.toLowerCase();
+  // ── Filtered lists ────────────────────────────────────────────────────────
 
-  const filteredColl: CollectionEntry[] = state.collection
-    .filter(
-      (e) =>
-        e.cardName.toLowerCase().includes(q) ||
-        e.setName.toLowerCase().includes(q) ||
-        e.setCode.toLowerCase().includes(q),
-    )
-    .filter((e) => e.copies.some((c) => collAvailable(e.id, c.condition) > 0));
+  const q = search.toLowerCase();
 
-  const filteredToGet: ToGetEntry[] = state.toGet
-    .filter(
-      (e) =>
-        e.cardName.toLowerCase().includes(q) ||
-        e.setName.toLowerCase().includes(q) ||
-        e.setCode.toLowerCase().includes(q),
-    )
-    .filter((e) => togAvailable(e.id) > 0);
+  const filteredOwned = useMemo(() => {
+    return state.collection
+      .filter(
+        (e) =>
+          (!q || e.cardName.toLowerCase().includes(q) || e.setCode.toLowerCase().includes(q) || e.setName.toLowerCase().includes(q)) &&
+          (!rarityFilter || e.rarity === rarityFilter) &&
+          (!setNameFilter || e.setName === setNameFilter),
+      )
+      .filter((e) =>
+        e.copies.some((c) => {
+          const inBinders = usageMap.coll.get(`${e.id}:${c.condition}`) ?? 0;
+          const inTray = tray.filter((t) => t.entryId === e.id && t.condition === c.condition).length;
+          return c.quantity - inBinders - inTray > 0;
+        }),
+      );
+  }, [state.collection, q, rarityFilter, setNameFilter, usageMap, tray]);
 
-  // Debounced YGO API search for "Add new" tab
+  const filteredWishlist = useMemo(() => {
+    return state.wishlist
+      .filter(
+        (e) =>
+          (!q || e.cardName.toLowerCase().includes(q) || e.setCode.toLowerCase().includes(q) || e.setName.toLowerCase().includes(q)) &&
+          (!rarityFilter || e.rarity === rarityFilter) &&
+          (!setNameFilter || e.setName === setNameFilter),
+      )
+      .filter((e) => {
+        const inBinders = usageMap.tog.get(e.id) ?? 0;
+        const inTray = tray.filter((t) => t.entryId === e.id && t.source === 'wishlist').length;
+        return e.desiredQuantity - inBinders - inTray > 0;
+      });
+  }, [state.wishlist, q, rarityFilter, setNameFilter, usageMap, tray]);
+
+  // Unique filter options for current tab
+  const { availableRarities, availableSets } = useMemo(() => {
+    const entries = tab === 'owned' ? state.collection : state.wishlist;
+    return {
+      availableRarities: [...new Set(entries.map((e) => e.rarity))].sort(),
+      availableSets: [...new Set(entries.map((e) => e.setName))].sort(),
+    };
+  }, [tab, state.collection, state.wishlist]);
+
+  // ── All Cards search ──────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (tab !== 'addNew' || !addQuery.trim()) {
-      setAddResults([]);
-      setAddLoading(false);
+    if (tab !== 'all') {
+      setAllResults([]);
+      setAllLoading(false);
       return;
     }
     const controller = new AbortController();
-    setAddLoading(true);
+    setAllLoading(true);
+    const apiType =
+      typeFilter === 'spell' ? 'Spell Card' : typeFilter === 'trap' ? 'Trap Card' : undefined;
+    // Debounce only when actively searching; load immediately for default/filter-only views
+    const delay = allQuery.trim() ? 350 : 0;
     const timer = setTimeout(async () => {
       try {
-        const result = await searchCards(addQuery);
-        if (!controller.signal.aborted) setAddResults(result.data.slice(0, 12));
+        const result = await searchCards(allQuery, 0, apiType);
+        if (!controller.signal.aborted) {
+          const data = result.data
+            .filter((c) => cardMatchesType(c, typeFilter))
+            .slice(0, 24);
+          setAllResults(data);
+        }
       } catch {
-        if (!controller.signal.aborted) setAddResults([]);
+        if (!controller.signal.aborted) setAllResults([]);
       } finally {
-        if (!controller.signal.aborted) setAddLoading(false);
+        if (!controller.signal.aborted) setAllLoading(false);
       }
-    }, 350);
+    }, delay);
     return () => {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [addQuery, tab]);
+  }, [allQuery, typeFilter, tab]);
 
-  const handleSelectConfig = (card: YGOCard) => {
-    setConfigCard(card);
-    setConfigSetIdx(0);
-    setConfigCondition('NM');
-    setConfigSource('collection');
-  };
+  // ── Tray ──────────────────────────────────────────────────────────────────
 
-  const handleAssignNew = () => {
-    if (!configCard) return;
-    const sets = configCard.card_sets ?? [];
-    const selectedSet: YGOCardSet | undefined = sets[configSetIdx];
-    if (!selectedSet) return;
+  function addToTray(item: Omit<TrayItem, 'id'>) {
+    if (tray.length >= emptySlotCount) return;
+    setTray((prev) => [...prev, { ...item, id: `${Date.now()}-${Math.random()}` }]);
+  }
 
-    const entryId = `${configCard.id}-${selectedSet.set_code}-${selectedSet.set_rarity_code}`;
+  function removeFromTray(id: string) {
+    setTray((prev) => prev.filter((t) => t.id !== id));
+  }
 
-    if (configSource === 'collection') {
-      const exists = state.collection.some((e) => e.id === entryId);
-      if (!exists) {
+  function handleConfirm() {
+    // Dispatch ADD actions for "All Cards" items not yet in collection/wishlist
+    for (const item of tray) {
+      if (!item.pendingCard || !item.pendingSet) continue;
+      const alreadyInCollection = state.collection.some((e) => e.id === item.entryId);
+      const alreadyInWishlist = state.wishlist.some((e) => e.id === item.entryId);
+      if (item.source === 'collection' && !alreadyInCollection) {
         dispatch({
           type: 'ADD_TO_COLLECTION',
           entry: {
-            id: entryId,
-            cardId: configCard.id,
-            cardName: configCard.name,
-            cardImageUrl: configCard.card_images[0]?.image_url_small ?? '',
-            setName: selectedSet.set_name,
-            setCode: selectedSet.set_code,
-            rarity: selectedSet.set_rarity,
-            copies: [{ condition: configCondition, quantity: 1 }],
+            id: item.entryId,
+            cardId: item.pendingCard.id,
+            cardName: item.pendingCard.name,
+            cardImageUrl: item.pendingCard.card_images[0]?.image_url_small ?? '',
+            setName: item.pendingSet.set_name,
+            setCode: item.pendingSet.set_code,
+            rarity: item.pendingSet.set_rarity,
+            copies: [{ condition: item.condition ?? 'NM', quantity: 1 }],
             dateAdded: new Date().toISOString(),
           },
         });
-      }
-      onSelect(entryId, 'collection', configCondition);
-    } else {
-      const exists = state.toGet.some((e) => e.id === entryId);
-      if (!exists) {
+      } else if (item.source === 'wishlist' && !alreadyInWishlist) {
         dispatch({
-          type: 'ADD_TO_TO_GET',
+          type: 'ADD_TO_WISHLIST',
           entry: {
-            id: entryId,
-            cardId: configCard.id,
-            cardName: configCard.name,
-            cardImageUrl: configCard.card_images[0]?.image_url_small ?? '',
-            setName: selectedSet.set_name,
-            setCode: selectedSet.set_code,
-            rarity: selectedSet.set_rarity,
-            minCondition: configCondition,
+            id: item.entryId,
+            cardId: item.pendingCard.id,
+            cardName: item.pendingCard.name,
+            cardImageUrl: item.pendingCard.card_images[0]?.image_url_small ?? '',
+            setName: item.pendingSet.set_name,
+            setCode: item.pendingSet.set_code,
+            rarity: item.pendingSet.set_rarity,
+            minCondition: item.condition ?? 'NM',
             desiredQuantity: 1,
             dateAdded: new Date().toISOString(),
           },
         });
       }
-      onSelect(entryId, 'toGet');
     }
-  };
+    onConfirm(tray);
+  }
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  function handleAddPendingToTray() {
+    if (!pendingConfig) return;
+    const sets = pendingConfig.card.card_sets ?? [];
+    const selectedSet = sets[pendingConfig.setIdx];
+    if (!selectedSet) return;
+    const entryId = `${pendingConfig.card.id}-${selectedSet.set_code}-${selectedSet.set_rarity_code}`;
+    addToTray({
+      entryId,
+      source: pendingConfig.targetList,
+      condition: pendingConfig.condition,
+      cardName: pendingConfig.card.name,
+      cardImageUrl: pendingConfig.card.card_images[0]?.image_url_small ?? '',
+      pendingCard: pendingConfig.card,
+      pendingSet: selectedSet,
+    });
+    setPendingConfig(null);
+  }
+
+  function switchTab(t: Tab) {
+    setTab(t);
+    setSearch('');
+    setRarityFilter('');
+    setSetNameFilter('');
+    setPendingConfig(null);
+  }
+
+  const trayFull = tray.length >= emptySlotCount;
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="card-picker">
+
+      {/* Tab bar */}
       <div className="card-picker__tabs">
-        <button
-          className={`card-picker__tab${tab === 'lists' ? ' card-picker__tab--active' : ''}`}
-          onClick={() => setTab('lists')}
-        >
-          My Cards
-        </button>
-        <button
-          className={`card-picker__tab${tab === 'addNew' ? ' card-picker__tab--active' : ''}`}
-          onClick={() => setTab('addNew')}
-        >
-          Search &amp; Add
-        </button>
+        {(['owned', 'wishlist', 'all'] as Tab[]).map((t) => (
+          <button
+            key={t}
+            className={`card-picker__tab${tab === t ? ' card-picker__tab--active' : ''}`}
+            onClick={() => switchTab(t)}
+          >
+            {t === 'owned' ? 'Owned' : t === 'wishlist' ? 'Wishlist' : 'All Cards'}
+          </button>
+        ))}
       </div>
 
-      {/* ── My Cards tab ── */}
-      {tab === 'lists' && (
-        <>
-          <input
-            className="card-picker__search"
-            type="search"
-            placeholder="Filter by card or set name…"
-            value={listSearch}
-            onChange={(e) => setListSearch(e.target.value)}
-            autoFocus
-          />
+      {/* Filter bar */}
+      <div className="card-picker__filters">
+        {tab !== 'all' ? (
+          <>
+            <input
+              className="card-picker__filter-search"
+              type="search"
+              placeholder="Search card or set…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            <select
+              className="card-picker__filter-select"
+              value={rarityFilter}
+              onChange={(e) => setRarityFilter(e.target.value)}
+            >
+              <option value="">All rarities</option>
+              {availableRarities.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+            <select
+              className="card-picker__filter-select"
+              value={setNameFilter}
+              onChange={(e) => setSetNameFilter(e.target.value)}
+            >
+              <option value="">All sets</option>
+              {availableSets.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </>
+        ) : (
+          <>
+            <input
+              className="card-picker__filter-search"
+              type="search"
+              placeholder="Search card database…"
+              value={allQuery}
+              onChange={(e) => setAllQuery(e.target.value)}
+              autoFocus={!pendingConfig}
+            />
+            <select
+              className="card-picker__filter-select card-picker__filter-select--type"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="">All types</option>
+              <option value="monster">Monster</option>
+              <option value="spell">Spell</option>
+              <option value="trap">Trap</option>
+            </select>
+          </>
+        )}
+      </div>
 
-          <div className="card-picker__list">
-            {filteredColl.length === 0 && filteredToGet.length === 0 && (
+      {/* Scrollable body */}
+      <div className="card-picker__body">
+
+        {/* Owned tab */}
+        {tab === 'owned' && (
+          <div className="card-picker__grid">
+            {filteredOwned.length === 0 && (
               <div className="card-picker__empty">
-                {listSearch
-                  ? 'No available cards match your search.'
-                  : 'No cards available to place. All copies may already be placed in binder slots, or your lists are empty.'}
+                {search || rarityFilter || setNameFilter
+                  ? 'No cards match your filters.'
+                  : state.collection.length === 0
+                  ? 'Your collection is empty.'
+                  : 'All copies are already in binder slots.'}
               </div>
             )}
-
-            {filteredColl.length > 0 && (
-              <>
-                <div className="card-picker__section-label">Collection</div>
-                {filteredColl.map((entry) => (
-                  <div key={entry.id} className="card-picker__entry">
-                    <div className="card-picker__entry-header">
-                      {entry.cardImageUrl && (
-                        <img
-                          className="card-picker__item-img"
-                          src={entry.cardImageUrl}
-                          alt={entry.cardName}
-                        />
-                      )}
-                      <div className="card-picker__item-info">
-                        <span className="card-picker__item-name">{entry.cardName}</span>
-                        <span className="card-picker__item-sub">
-                          {entry.setCode} · {entry.rarity}
-                        </span>
-                      </div>
-                    </div>
-                    {CONDITION_ORDER.filter((c) => {
-                      const copy = entry.copies.find((x) => x.condition === c);
-                      return copy && collAvailable(entry.id, c) > 0;
-                    }).map((c) => {
+            {filteredOwned.map((entry) => {
+              const bestCondition = CONDITION_ORDER.find((c) => collAvailable(entry.id, c) > 0);
+              return (
+                <div
+                  key={entry.id}
+                  className="card-picker__tile card-picker__tile--clickable"
+                  role="button"
+                  tabIndex={trayFull || !bestCondition ? -1 : 0}
+                  aria-disabled={trayFull || !bestCondition}
+                  onClick={() => {
+                    if (trayFull || !bestCondition) return;
+                    addToTray({
+                      entryId: entry.id,
+                      source: 'collection',
+                      condition: bestCondition,
+                      cardName: entry.cardName,
+                      cardImageUrl: entry.cardImageUrl,
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') e.currentTarget.click();
+                  }}
+                >
+                  <div className="card-picker__tile-img-wrap">
+                    {entry.cardImageUrl
+                      ? <img src={entry.cardImageUrl} alt={entry.cardName} className="card-picker__tile-img" />
+                      : <div className="card-picker__tile-img-placeholder">?</div>
+                    }
+                  </div>
+                  <div className="card-picker__tile-name">{entry.cardName}</div>
+                  <div className="card-picker__tile-sub">{entry.setCode} · {entry.rarity}</div>
+                  <div
+                    className="card-picker__tile-conds"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {CONDITION_ORDER.filter((c) => collAvailable(entry.id, c) > 0).map((c) => {
                       const avail = collAvailable(entry.id, c);
                       return (
                         <button
                           key={c}
-                          className="card-picker__condition-row"
-                          onClick={() => onSelect(entry.id, 'collection', c)}
+                          className={`card-picker__cond-chip${c === bestCondition ? ' card-picker__cond-chip--best' : ''}`}
+                          onClick={() => addToTray({
+                            entryId: entry.id,
+                            source: 'collection',
+                            condition: c,
+                            cardName: entry.cardName,
+                            cardImageUrl: entry.cardImageUrl,
+                          })}
+                          disabled={trayFull}
+                          title={`${CONDITION_LABELS[c]} — ${avail} available`}
                         >
-                          <span className="card-picker__cond-badge">{c}</span>
-                          <span className="card-picker__cond-label">{CONDITION_LABELS[c]}</span>
-                          <span className="card-picker__cond-avail">{avail} available</span>
+                          {c} ×{avail}
                         </button>
                       );
                     })}
                   </div>
-                ))}
-              </>
-            )}
-
-            {filteredToGet.length > 0 && (
-              <>
-                <div className="card-picker__section-label">To Get</div>
-                {filteredToGet.map((entry) => {
-                  const avail = togAvailable(entry.id);
-                  return (
-                    <button
-                      key={entry.id}
-                      className="card-picker__item"
-                      onClick={() => onSelect(entry.id, 'toGet')}
-                    >
-                      {entry.cardImageUrl && (
-                        <img
-                          className="card-picker__item-img"
-                          src={entry.cardImageUrl}
-                          alt={entry.cardName}
-                        />
-                      )}
-                      <div className="card-picker__item-info">
-                        <span className="card-picker__item-name">{entry.cardName}</span>
-                        <span className="card-picker__item-sub">
-                          {entry.setCode} · {entry.rarity}
-                        </span>
-                      </div>
-                      <span className="card-picker__cond-avail">{avail} slot{avail !== 1 ? 's' : ''}</span>
-                    </button>
-                  );
-                })}
-              </>
-            )}
+                </div>
+              );
+            })}
           </div>
-        </>
-      )}
+        )}
 
-      {/* ── Search & Add tab ── */}
-      {tab === 'addNew' && !configCard && (
-        <>
-          <input
-            className="card-picker__search"
-            type="search"
-            placeholder="Search card database…"
-            value={addQuery}
-            onChange={(e) => setAddQuery(e.target.value)}
-            autoFocus
-          />
+        {/* Wishlist tab */}
+        {tab === 'wishlist' && (
+          <div className="card-picker__grid">
+            {filteredWishlist.length === 0 && (
+              <div className="card-picker__empty">
+                {search || rarityFilter || setNameFilter
+                  ? 'No cards match your filters.'
+                  : state.wishlist.length === 0
+                  ? 'Your wishlist is empty.'
+                  : 'All wishlist slots are already filled.'}
+              </div>
+            )}
+            {filteredWishlist.map((entry) => {
+              const avail = wishlistAvailable(entry.id);
+              return (
+                <button
+                  key={entry.id}
+                  className="card-picker__tile card-picker__tile--clickable"
+                  onClick={() => addToTray({
+                    entryId: entry.id,
+                    source: 'wishlist',
+                    cardName: entry.cardName,
+                    cardImageUrl: entry.cardImageUrl,
+                  })}
+                  disabled={trayFull}
+                >
+                  <div className="card-picker__tile-img-wrap">
+                    {entry.cardImageUrl
+                      ? <img src={entry.cardImageUrl} alt={entry.cardName} className="card-picker__tile-img" />
+                      : <div className="card-picker__tile-img-placeholder">?</div>
+                    }
+                  </div>
+                  <div className="card-picker__tile-name">{entry.cardName}</div>
+                  <div className="card-picker__tile-sub">{entry.setCode} · {entry.rarity}</div>
+                  <div className="card-picker__tile-avail">{avail} slot{avail !== 1 ? 's' : ''}</div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-          <div className="card-picker__list">
-            {addLoading && (
+        {/* All Cards tab — search grid */}
+        {tab === 'all' && !pendingConfig && (
+          <>
+            {!allLoading && allResults.length > 0 && (
+              <div className="card-picker__all-label">
+                {allQuery.trim() ? 'Search results' : 'Recently released'}
+              </div>
+            )}
+          <div className="card-picker__grid">
+            {allLoading && (
               <div className="card-picker__empty">
                 <div className="spinner" style={{ margin: '0 auto' }} />
               </div>
             )}
-            {!addLoading && addQuery && addResults.length === 0 && (
+            {!allLoading && allResults.length === 0 && (
               <div className="card-picker__empty">No cards found.</div>
             )}
-            {!addLoading && !addQuery && (
-              <div className="card-picker__empty">Type a card name to search.</div>
-            )}
-            {addResults.map((card) => (
+            {allResults.map((card) => (
               <button
                 key={card.id}
-                className="card-picker__item"
-                onClick={() => handleSelectConfig(card)}
+                className="card-picker__tile card-picker__tile--clickable"
+                onClick={() => setPendingConfig({ card, setIdx: 0, condition: 'NM', targetList: 'collection' })}
               >
-                {card.card_images[0] && (
-                  <img
-                    className="card-picker__item-img"
-                    src={card.card_images[0].image_url_small}
-                    alt={card.name}
-                  />
-                )}
-                <div className="card-picker__item-info">
-                  <span className="card-picker__item-name">{card.name}</span>
-                  <span className="card-picker__item-sub">{card.type}</span>
+                <div className="card-picker__tile-img-wrap">
+                  {card.card_images[0]
+                    ? <img src={card.card_images[0].image_url_small} alt={card.name} className="card-picker__tile-img" />
+                    : <div className="card-picker__tile-img-placeholder">?</div>
+                  }
                 </div>
+                <div className="card-picker__tile-name">{card.name}</div>
+                <div className="card-picker__tile-sub">{card.type}</div>
               </button>
             ))}
           </div>
-        </>
-      )}
+          </>
+        )}
 
-      {/* ── Configure form (after picking a card from search) ── */}
-      {tab === 'addNew' && configCard && (
-        <div className="card-picker__configure">
-          <button
-            className="card-picker__back-btn"
-            onClick={() => setConfigCard(null)}
-          >
-            ← Back to search
-          </button>
+        {/* All Cards tab — configure panel */}
+        {tab === 'all' && pendingConfig && (
+          <div className="card-picker__configure">
+            <button className="card-picker__back-btn" onClick={() => setPendingConfig(null)}>
+              ← Back to search
+            </button>
 
-          <div className="card-picker__config-header">
-            {configCard.card_images[0] && (
-              <img
-                className="card-picker__config-img"
-                src={configCard.card_images[0].image_url_small}
-                alt={configCard.name}
-              />
-            )}
-            <div>
-              <div className="card-picker__item-name">{configCard.name}</div>
-              <div className="card-picker__item-sub">{configCard.type}</div>
+            <div className="card-picker__config-header">
+              {pendingConfig.card.card_images[0] && (
+                <img
+                  className="card-picker__config-img"
+                  src={pendingConfig.card.card_images[0].image_url_small}
+                  alt={pendingConfig.card.name}
+                />
+              )}
+              <div>
+                <div className="card-picker__config-name">{pendingConfig.card.name}</div>
+                <div className="card-picker__config-type">{pendingConfig.card.type}</div>
+              </div>
             </div>
-          </div>
 
-          <div className="card-picker__config-tabs">
-            <button
-              className={`card-picker__config-tab${configSource === 'collection' ? ' card-picker__config-tab--active' : ''}`}
-              onClick={() => setConfigSource('collection')}
-            >
-              Collection
-            </button>
-            <button
-              className={`card-picker__config-tab${configSource === 'toGet' ? ' card-picker__config-tab--active' : ''}`}
-              onClick={() => setConfigSource('toGet')}
-            >
-              To Get
-            </button>
-          </div>
-
-          <div className="card-picker__config-fields">
-            <label className="card-picker__config-label">
-              Set
-              <select
-                value={configSetIdx}
-                onChange={(e) => setConfigSetIdx(Number(e.target.value))}
+            <div className="card-picker__config-toggle">
+              <button
+                className={`card-picker__config-tab${pendingConfig.targetList === 'collection' ? ' card-picker__config-tab--active' : ''}`}
+                onClick={() => setPendingConfig((p) => p && { ...p, targetList: 'collection' })}
               >
-                {(configCard.card_sets ?? []).map((s, i) => (
-                  <option key={`${s.set_code}-${s.set_rarity_code}`} value={i}>
-                    {s.set_name} ({s.set_code}) — {s.set_rarity}
-                  </option>
-                ))}
-                {(configCard.card_sets ?? []).length === 0 && (
-                  <option value={0}>No sets available</option>
-                )}
-              </select>
-            </label>
-
-            <label className="card-picker__config-label">
-              {configSource === 'collection' ? 'Condition' : 'Min Condition'}
-              <select
-                value={configCondition}
-                onChange={(e) => setConfigCondition(e.target.value as Condition)}
+                Collection
+              </button>
+              <button
+                className={`card-picker__config-tab${pendingConfig.targetList === 'wishlist' ? ' card-picker__config-tab--active' : ''}`}
+                onClick={() => setPendingConfig((p) => p && { ...p, targetList: 'wishlist' })}
               >
-                {CONDITION_ORDER.map((c) => (
-                  <option key={c} value={c}>{CONDITION_LABELS[c]} ({c})</option>
-                ))}
-              </select>
-            </label>
-          </div>
+                Wishlist
+              </button>
+            </div>
 
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-            <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+            <div className="card-picker__config-fields">
+              <label className="card-picker__config-label">
+                Set
+                <select
+                  value={pendingConfig.setIdx}
+                  onChange={(e) => setPendingConfig((p) => p && { ...p, setIdx: Number(e.target.value) })}
+                >
+                  {(pendingConfig.card.card_sets ?? []).map((s, i) => (
+                    <option key={`${s.set_code}-${s.set_rarity_code}`} value={i}>
+                      {s.set_name} ({s.set_code}) — {s.set_rarity}
+                    </option>
+                  ))}
+                  {(pendingConfig.card.card_sets ?? []).length === 0 && (
+                    <option value={0}>No sets available</option>
+                  )}
+                </select>
+              </label>
+
+              <label className="card-picker__config-label">
+                {pendingConfig.targetList === 'collection' ? 'Condition' : 'Min condition'}
+                <select
+                  value={pendingConfig.condition}
+                  onChange={(e) => setPendingConfig((p) => p && { ...p, condition: e.target.value as Condition })}
+                >
+                  {CONDITION_ORDER.map((c) => (
+                    <option key={c} value={c}>{CONDITION_LABELS[c]} ({c})</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
             <button
               className="btn btn-primary"
-              onClick={handleAssignNew}
-              disabled={(configCard.card_sets ?? []).length === 0}
+              style={{ width: '100%', marginTop: '0.5rem' }}
+              onClick={handleAddPendingToTray}
+              disabled={(pendingConfig.card.card_sets ?? []).length === 0 || trayFull}
             >
-              Add to slot
+              Add to tray
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {tab === 'lists' && (
-        <div className="card-picker__footer">
+      {/* Selection tray */}
+      <div className="card-picker__tray">
+        {tray.length === 0 ? (
+          <div className="card-picker__tray-hint">
+            Select cards above · {emptySlotCount} empty slot{emptySlotCount !== 1 ? 's' : ''} from here
+          </div>
+        ) : (
+          <div className="card-picker__tray-chips">
+            {tray.map((item) => (
+              <div key={item.id} className="card-picker__chip">
+                {item.cardImageUrl && (
+                  <img src={item.cardImageUrl} alt={item.cardName} className="card-picker__chip-img" />
+                )}
+                {item.condition && (
+                  <span className="card-picker__chip-cond">{item.condition}</span>
+                )}
+                <button
+                  className="card-picker__chip-remove"
+                  onClick={() => removeFromTray(item.id)}
+                  aria-label={`Remove ${item.cardName}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="card-picker__tray-actions">
           <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleConfirm}
+            disabled={tray.length === 0}
+          >
+            {tray.length > 0 ? `Add ${tray.length} to binder` : 'Add to binder'}
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }

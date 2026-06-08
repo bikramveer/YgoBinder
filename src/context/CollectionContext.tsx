@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef, useState, useCallback } from 'react';
-import type { AppState, CollectionEntry, ToGetEntry, ConditionCopy, Condition, Binder, BinderPage, BinderSlot } from '../types';
+import type { AppState, CollectionEntry, WishlistEntry, ConditionCopy, Condition, Binder, BinderPage, BinderSlot } from '../types';
 import { CONDITION_ORDER } from '../types';
 import { loadState, saveState } from '../utils/storage';
 import { useAuth } from './AuthContext';
-import { collectionApi, toGetApi, syncApi, binderApi } from '../services/api';
+import { collectionApi, wishlistApi, syncApi, binderApi } from '../services/api';
 
 // ── Actions ───────────────────────────────────────────────────────────────────
 
@@ -14,11 +14,11 @@ type Action =
   | { type: 'UPDATE_COLLECTION_NOTES'; id: string; notes: string }
   | { type: 'REMOVE_FROM_COLLECTION'; id: string }
   | { type: 'REMOVE_COLLECTION_COPIES'; id: string; amount: number; condition?: Condition }
-  | { type: 'ADD_TO_TO_GET'; entry: ToGetEntry }
-  | { type: 'UPDATE_TO_GET'; id: string; patch: Partial<ToGetEntry> }
-  | { type: 'REMOVE_FROM_TO_GET'; id: string }
-  | { type: 'REDUCE_TO_GET_QUANTITY'; id: string; amount: number }
-  | { type: 'ACQUIRE'; toGetId: string; acquiredCopies: ConditionCopy[] }
+  | { type: 'ADD_TO_WISHLIST'; entry: WishlistEntry }
+  | { type: 'UPDATE_WISHLIST'; id: string; patch: Partial<WishlistEntry> }
+  | { type: 'REMOVE_FROM_WISHLIST'; id: string }
+  | { type: 'REDUCE_WISHLIST_QUANTITY'; id: string; amount: number }
+  | { type: 'ACQUIRE'; wishlistId: string; acquiredCopies: ConditionCopy[] }
   | { type: 'CREATE_BINDER'; binder: Binder }
   | { type: 'RENAME_BINDER'; binderId: string; name: string }
   | { type: 'SET_BINDER_COVER'; binderId: string; coverUrl: string | null }
@@ -119,8 +119,8 @@ function reducer(state: AppState, action: Action): AppState {
       };
     }
 
-    case 'ADD_TO_TO_GET': {
-      const existing = state.toGet.find((e) => e.id === action.entry.id);
+    case 'ADD_TO_WISHLIST': {
+      const existing = state.wishlist.find((e) => e.id === action.entry.id);
       if (existing) {
         const betterCondition =
           CONDITION_ORDER.indexOf(action.entry.minCondition) <
@@ -129,69 +129,69 @@ function reducer(state: AppState, action: Action): AppState {
             : existing.minCondition;
         return {
           ...state,
-          toGet: state.toGet.map((e) =>
+          wishlist: state.wishlist.map((e) =>
             e.id === action.entry.id
               ? { ...e, desiredQuantity: e.desiredQuantity + action.entry.desiredQuantity, minCondition: betterCondition }
               : e,
           ),
         };
       }
-      return { ...state, toGet: [...state.toGet, action.entry] };
+      return { ...state, wishlist: [...state.wishlist, action.entry] };
     }
 
-    case 'UPDATE_TO_GET':
+    case 'UPDATE_WISHLIST':
       return {
         ...state,
-        toGet: state.toGet.map((e) => e.id === action.id ? { ...e, ...action.patch } : e),
+        wishlist: state.wishlist.map((e) => e.id === action.id ? { ...e, ...action.patch } : e),
       };
 
-    case 'REMOVE_FROM_TO_GET':
-      return { ...state, toGet: state.toGet.filter((e) => e.id !== action.id) };
+    case 'REMOVE_FROM_WISHLIST':
+      return { ...state, wishlist: state.wishlist.filter((e) => e.id !== action.id) };
 
-    case 'REDUCE_TO_GET_QUANTITY': {
-      const entry = state.toGet.find((e) => e.id === action.id);
+    case 'REDUCE_WISHLIST_QUANTITY': {
+      const entry = state.wishlist.find((e) => e.id === action.id);
       if (!entry) return state;
       const newQty = entry.desiredQuantity - action.amount;
       if (newQty <= 0) {
-        return { ...state, toGet: state.toGet.filter((e) => e.id !== action.id) };
+        return { ...state, wishlist: state.wishlist.filter((e) => e.id !== action.id) };
       }
       return {
         ...state,
-        toGet: state.toGet.map((e) => e.id === action.id ? { ...e, desiredQuantity: newQty } : e),
+        wishlist: state.wishlist.map((e) => e.id === action.id ? { ...e, desiredQuantity: newQty } : e),
       };
     }
 
     case 'ACQUIRE': {
-      const toGetEntry = state.toGet.find((e) => e.id === action.toGetId);
-      if (!toGetEntry) return state;
+      const wishlistEntry = state.wishlist.find((e) => e.id === action.wishlistId);
+      if (!wishlistEntry) return state;
 
-      const existingCollection = state.collection.find((e) => e.id === toGetEntry.id);
+      const existingCollection = state.collection.find((e) => e.id === wishlistEntry.id);
       const newCopies = existingCollection
         ? mergeCopies(existingCollection.copies, action.acquiredCopies)
         : sortCopies(action.acquiredCopies);
       const newTotalOwned = newCopies.reduce((sum, c) => sum + c.quantity, 0);
 
       const collectionEntry: CollectionEntry = {
-        id: toGetEntry.id,
-        cardId: toGetEntry.cardId,
-        cardName: toGetEntry.cardName,
-        cardImageUrl: toGetEntry.cardImageUrl,
-        setName: toGetEntry.setName,
-        setCode: toGetEntry.setCode,
-        rarity: toGetEntry.rarity,
+        id: wishlistEntry.id,
+        cardId: wishlistEntry.cardId,
+        cardName: wishlistEntry.cardName,
+        cardImageUrl: wishlistEntry.cardImageUrl,
+        setName: wishlistEntry.setName,
+        setCode: wishlistEntry.setCode,
+        rarity: wishlistEntry.rarity,
         copies: newCopies,
         dateAdded: new Date().toISOString(),
       };
 
       const nextCollection = existingCollection
-        ? state.collection.map((e) => e.id === toGetEntry.id ? { ...e, copies: newCopies } : e)
+        ? state.collection.map((e) => e.id === wishlistEntry.id ? { ...e, copies: newCopies } : e)
         : [...state.collection, collectionEntry];
 
-      const nextToGet = newTotalOwned >= toGetEntry.desiredQuantity
-        ? state.toGet.filter((e) => e.id !== action.toGetId)
-        : state.toGet;
+      const nextWishlist = newTotalOwned >= wishlistEntry.desiredQuantity
+        ? state.wishlist.filter((e) => e.id !== action.wishlistId)
+        : state.wishlist;
 
-      return { ...state, collection: nextCollection, toGet: nextToGet };
+      return { ...state, collection: nextCollection, wishlist: nextWishlist };
     }
 
     case 'CREATE_BINDER':
@@ -325,48 +325,48 @@ async function syncToApi(action: Action, prevState: AppState): Promise<void> {
       break;
     }
 
-    case 'ADD_TO_TO_GET':
-      await toGetApi.add(action.entry);
+    case 'ADD_TO_WISHLIST':
+      await wishlistApi.add(action.entry);
       break;
 
-    case 'UPDATE_TO_GET': {
+    case 'UPDATE_WISHLIST': {
       const patch: { condition?: Condition; quantity?: number } = {};
       if (action.patch.minCondition !== undefined) patch.condition = action.patch.minCondition;
       if (action.patch.desiredQuantity !== undefined) patch.quantity = action.patch.desiredQuantity;
-      if (Object.keys(patch).length > 0) await toGetApi.update(action.id, patch);
+      if (Object.keys(patch).length > 0) await wishlistApi.update(action.id, patch);
       break;
     }
 
-    case 'REMOVE_FROM_TO_GET':
-      await toGetApi.remove(action.id);
+    case 'REMOVE_FROM_WISHLIST':
+      await wishlistApi.remove(action.id);
       break;
 
-    case 'REDUCE_TO_GET_QUANTITY': {
-      const entry = prevState.toGet.find((e) => e.id === action.id);
+    case 'REDUCE_WISHLIST_QUANTITY': {
+      const entry = prevState.wishlist.find((e) => e.id === action.id);
       if (!entry) break;
       const newQty = entry.desiredQuantity - action.amount;
       if (newQty <= 0) {
-        await toGetApi.remove(action.id);
+        await wishlistApi.remove(action.id);
       } else {
-        await toGetApi.update(action.id, { quantity: newQty });
+        await wishlistApi.update(action.id, { quantity: newQty });
       }
       break;
     }
 
     case 'ACQUIRE': {
-      const toGetEntry = prevState.toGet.find((e) => e.id === action.toGetId);
-      if (!toGetEntry) break;
+      const wishlistEntry = prevState.wishlist.find((e) => e.id === action.wishlistId);
+      if (!wishlistEntry) break;
 
       for (const copy of action.acquiredCopies) {
         await collectionApi.addCopy(
           {
-            id: toGetEntry.id,
-            cardId: toGetEntry.cardId,
-            cardName: toGetEntry.cardName,
-            cardImageUrl: toGetEntry.cardImageUrl,
-            setName: toGetEntry.setName,
-            setCode: toGetEntry.setCode,
-            rarity: toGetEntry.rarity,
+            id: wishlistEntry.id,
+            cardId: wishlistEntry.cardId,
+            cardName: wishlistEntry.cardName,
+            cardImageUrl: wishlistEntry.cardImageUrl,
+            setName: wishlistEntry.setName,
+            setCode: wishlistEntry.setCode,
+            rarity: wishlistEntry.rarity,
             copies: [copy],
             dateAdded: new Date().toISOString(),
           },
@@ -374,13 +374,13 @@ async function syncToApi(action: Action, prevState: AppState): Promise<void> {
         );
       }
 
-      // Remove toGet if fully acquired (mirrors the reducer logic)
+      // Remove wishlist entry if fully acquired (mirrors the reducer logic)
       const existingOwned =
-        prevState.collection.find((e) => e.id === toGetEntry.id)
+        prevState.collection.find((e) => e.id === wishlistEntry.id)
           ?.copies.reduce((s, c) => s + c.quantity, 0) ?? 0;
       const newlyAcquired = action.acquiredCopies.reduce((s, c) => s + c.quantity, 0);
-      if (existingOwned + newlyAcquired >= toGetEntry.desiredQuantity) {
-        await toGetApi.remove(action.toGetId);
+      if (existingOwned + newlyAcquired >= wishlistEntry.desiredQuantity) {
+        await wishlistApi.remove(action.wishlistId);
       }
       break;
     }
@@ -436,7 +436,7 @@ interface CollectionContextValue {
   state: AppState;
   dispatch: React.Dispatch<Action>;
   totalOwned: (entryId: string) => number;
-  stillNeeded: (entry: ToGetEntry) => number;
+  stillNeeded: (entry: WishlistEntry) => number;
   apiLoading: boolean;
   showSyncPrompt: boolean;
   importLocalData: () => Promise<void>;
@@ -483,15 +483,15 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
     try {
       const snapshot = loadState();
 
-      const [collection, toGet, binders] = await Promise.all([
+      const [collection, wishlist, binders] = await Promise.all([
         collectionApi.fetchAll(),
-        toGetApi.fetchAll(),
+        wishlistApi.fetchAll(),
         binderApi.fetchAll(),
       ]);
 
-      dispatch({ type: 'LOAD_STATE', state: { collection, toGet, binders } });
+      dispatch({ type: 'LOAD_STATE', state: { collection, wishlist, binders } });
 
-      if (snapshot.collection.length > 0 || snapshot.toGet.length > 0 || snapshot.binders.length > 0) {
+      if (snapshot.collection.length > 0 || snapshot.wishlist.length > 0 || snapshot.binders.length > 0) {
         setLocalSnapshot(snapshot);
         setShowSyncPrompt(true);
       }
@@ -527,15 +527,15 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
   const importLocalData = useCallback(async () => {
     if (!localSnapshot) return;
     try {
-      await syncApi.importLocalData(localSnapshot.collection, localSnapshot.toGet, localSnapshot.binders);
-      const [collection, toGet, binders] = await Promise.all([
+      await syncApi.importLocalData(localSnapshot.collection, localSnapshot.wishlist, localSnapshot.binders);
+      const [collection, wishlist, binders] = await Promise.all([
         collectionApi.fetchAll(),
-        toGetApi.fetchAll(),
+        wishlistApi.fetchAll(),
         binderApi.fetchAll(),
       ]);
-      dispatch({ type: 'LOAD_STATE', state: { collection, toGet, binders } });
+      dispatch({ type: 'LOAD_STATE', state: { collection, wishlist, binders } });
       // Clear localStorage so logout returns to a clean guest state
-      saveState({ collection: [], toGet: [], binders: [] });
+      saveState({ collection: [], wishlist: [], binders: [] });
     } catch (err) {
       console.error('Import failed:', err);
     } finally {
@@ -593,7 +593,7 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
 
   const dismissSyncPrompt = useCallback(() => {
     // Clear localStorage so logout returns to a clean guest state
-    saveState({ collection: [], toGet: [], binders: [] });
+    saveState({ collection: [], wishlist: [], binders: [] });
     setShowSyncPrompt(false);
     setLocalSnapshot(null);
   }, []);
@@ -604,7 +604,7 @@ export function CollectionProvider({ children }: { children: React.ReactNode }) 
     return entry.copies.reduce((sum, c) => sum + c.quantity, 0);
   };
 
-  const stillNeeded = (entry: ToGetEntry): number =>
+  const stillNeeded = (entry: WishlistEntry): number =>
     Math.max(0, entry.desiredQuantity - totalOwned(entry.id));
 
   return (

@@ -34,7 +34,7 @@
   pointer-events: none;
 }
 
-.binder-slot__img--toget {
+.binder-slot__img--wishlist {
   opacity: 0.45;
 }
 
@@ -62,7 +62,7 @@
   pointer-events: none;
 }
 
-.binder-slot__badge--toget {
+.binder-slot__badge--wishlist {
   background: rgba(201, 168, 76, 0.7);
 }
 

@@ -18,7 +18,7 @@ interface Props {
 
 interface AddState {
   set: YGOCardSet;
-  mode: 'collection' | 'toget';
+  mode: 'collection' | 'wishlist';
   condition: Condition;
   quantity: number;
 }
@@ -111,7 +111,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     s.set_rarity.toLowerCase().includes(setFilter.toLowerCase()),
   );
 
-  const openAddForm = (set: YGOCardSet, mode: 'collection' | 'toget') => {
+  const openAddForm = (set: YGOCardSet, mode: 'collection' | 'wishlist') => {
     setAddState({ set, mode, condition: 'NM', quantity: 1 });
   };
 
@@ -138,7 +138,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
       });
     } else {
       dispatch({
-        type: 'ADD_TO_TO_GET',
+        type: 'ADD_TO_WISHLIST',
         entry: {
           id: entryId,
           cardId: headerCard.id,
@@ -230,7 +230,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                   </button>
 
                   <div style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.6rem' }}>
-                    {addState.mode === 'collection' ? 'Add to Collection' : 'Add to To Get'}
+                    {addState.mode === 'collection' ? 'Add to Collection' : 'Add to Wishlist'}
                   </div>
 
                   <div className="card-detail__add-set-info">
@@ -273,7 +273,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                   <div className="card-detail__add-actions">
                     <button className="btn btn-ghost" onClick={() => setAddState(null)}>Cancel</button>
                     <button className="btn btn-primary" onClick={submitAdd}>
-                      {addState.mode === 'collection' ? 'Add to Collection' : 'Add to To Get'}
+                      {addState.mode === 'collection' ? 'Add to Collection' : 'Add to Wishlist'}
                     </button>
                   </div>
                 </div>
@@ -315,7 +315,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                               {filteredSets.map((set) => {
                                 const entryId = makeEntryId(headerCard.id, set);
                                 const inCollection = state.collection.some((e) => e.id === entryId);
-                                const inToGet = state.toGet.some((e) => e.id === entryId);
+                                const inWishlist = state.wishlist.some((e) => e.id === entryId);
                                 const priceUsd = parseFloat(set.set_price);
                                 const hasPrice = priceUsd > 0;
                                 const historyKey = `${set.set_code}|${set.set_rarity}`;
@@ -359,10 +359,10 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                           </button>
                                           <button
                                             className="btn btn-ghost"
-                                            style={inToGet ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
-                                            onClick={() => openAddForm(set, 'toget')}
+                                            style={inWishlist ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
+                                            onClick={() => openAddForm(set, 'wishlist')}
                                           >
-                                            {inToGet ? '✓ To Get' : '+ To Get'}
+                                            {inWishlist ? '✓ Wishlist' : '+ Wishlist'}
                                           </button>
                                         </div>
                                       </td>

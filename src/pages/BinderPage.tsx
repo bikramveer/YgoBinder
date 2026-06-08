@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
+import type { TrayItem } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
 import { BinderCoverPicker } from '../components/Binder/BinderCoverPicker';
-import type { Binder, BinderPage, BinderSlot, Condition } from '../types';
+import type { Binder, BinderPage, BinderSlot } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import './BinderPage.css';
@@ -15,7 +16,7 @@ type ModalState =
   | { kind: 'rename'; binderId: string }
   | { kind: 'cover'; binderId: string }
   | { kind: 'delete'; binderId: string; binderName: string }
-  | { kind: 'picker'; pageId: string; slotIndex: number }
+  | { kind: 'picker'; pageId: string; slotIndex: number; emptySlotCount: number }
   | { kind: 'card'; pageId: string; slotIndex: number; slotData: ResolvedSlotData }
   | { kind: 'removePage'; pageId: string }
   | null;
@@ -72,7 +73,7 @@ export function BinderPage() {
     const entry =
       slot.source === 'collection'
         ? state.collection.find((e) => e.id === slot.entryId)
-        : state.toGet.find((e) => e.id === slot.entryId);
+        : state.wishlist.find((e) => e.id === slot.entryId);
     if (!entry) return null;
     return {
       entryId: slot.entryId,
@@ -218,19 +219,50 @@ export function BinderPage() {
     if (resolved) {
       setModal({ kind: 'card', pageId, slotIndex, slotData: resolved });
     } else {
-      setModal({ kind: 'picker', pageId, slotIndex });
+      // Count empty slots from this position forward so the modal can show the cap
+      let emptySlotCount = 0;
+      let started = false;
+      for (const p of binder.pages) {
+        for (let i = 0; i < slotCount; i++) {
+          if (!started) {
+            if (p.id === pageId && i === slotIndex) started = true;
+            else continue;
+          }
+          if (!p.slots[i]) emptySlotCount++;
+        }
+      }
+      setModal({ kind: 'picker', pageId, slotIndex, emptySlotCount });
     }
   };
 
-  const handlePickCard = (entryId: string, source: 'collection' | 'toGet', condition?: Condition) => {
+  const handlePickCards = (items: TrayItem[]) => {
     if (modal?.kind !== 'picker' || !binder) return;
-    dispatch({
-      type: 'ASSIGN_BINDER_SLOT',
-      binderId: binder.id,
-      pageId: modal.pageId,
-      slotIndex: modal.slotIndex,
-      entry: { entryId, source, condition },
-    });
+
+    // Collect empty slots in order starting from the clicked slot
+    const emptySlots: Array<{ pageId: string; slotIndex: number }> = [];
+    let started = false;
+    for (const p of binder.pages) {
+      for (let i = 0; i < slotCount; i++) {
+        if (!started) {
+          if (p.id === modal.pageId && i === modal.slotIndex) started = true;
+          else continue;
+        }
+        if (!p.slots[i]) emptySlots.push({ pageId: p.id, slotIndex: i });
+      }
+    }
+
+    for (let i = 0; i < Math.min(items.length, emptySlots.length); i++) {
+      const { pageId, slotIndex } = emptySlots[i];
+      const item = items[i];
+      dispatch({
+        type: 'ASSIGN_BINDER_SLOT',
+        binderId: binder.id,
+        pageId,
+        slotIndex,
+        entry: { entryId: item.entryId, source: item.source, condition: item.condition },
+      });
+    }
+
     setModal(null);
   };
 
@@ -536,7 +568,7 @@ export function BinderPage() {
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '340px' }}>
             <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Delete Binder?</h2>
             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              "{modal.binderName}" and all its page layouts will be deleted. Your Collection and To Get entries are not affected.
+              "{modal.binderName}" and all its page layouts will be deleted. Your Collection and Wishlist entries are not affected.
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
               <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
@@ -563,9 +595,10 @@ export function BinderPage() {
 
       {modal?.kind === 'picker' && (
         <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '420px', display: 'flex', flexDirection: 'column' }}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '600px', width: '95vw', display: 'flex', flexDirection: 'column' }}>
             <CardPickerModal
-              onSelect={handlePickCard}
+              emptySlotCount={modal.emptySlotCount}
+              onConfirm={handlePickCards}
               onCancel={() => setModal(null)}
             />
           </div>
