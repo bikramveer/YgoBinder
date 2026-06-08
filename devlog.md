@@ -16,9 +16,13 @@ This file is a running record of everything built, every architectural decision 
    - [What Was Built](#what-was-built)
    - [Deployment War Stories](#deployment-war-stories)
    - [Bugs Fixed After Launch](#bugs-fixed-after-launch)
-5. [What's Left to Build](#5-whats-left-to-build)
-6. [Key Technical Decisions](#6-key-technical-decisions)
-7. [Learning Resources](#7-learning-resources)
+5. [Custom Domain + Animations](#5-custom-domain--animations-phase-2026-06-07)
+6. [Cleaning Branch](#6-cleaning-branch-2026-06-08) — Wishlist rename + multi-select CardPickerModal
+7. [Price History](#7-phase-6-price-history)
+8. [Binder Backend Sync](#8-phase-7-binder-backend-sync)
+9. [What's Left to Build](#9-whats-left-to-build)
+10. [Key Technical Decisions](#6-key-technical-decisions)
+11. [Learning Resources](#7-learning-resources)
 
 ---
 
@@ -698,17 +702,67 @@ Fix: `'ADD_TO_TO_GET'` → `'ADD_TO_WISHLIST'` in `SearchPage.tsx` resolved both
 
 ---
 
+## 8. Phase 6: Price History (Complete)
+
+### What was built
+
+Daily price snapshots for every card tracked across all users. The system runs once per day, fetches current prices from YGOPRODeck, and stores a snapshot so users can see how prices have moved over time.
+
+**Backend:**
+- `price_history` table — `(card_id, set_code, rarity, price_usd, recorded_at)` with a UNIQUE constraint so re-running the sync on the same day is safe (`ON CONFLICT DO NOTHING`).
+- `exchange_rates` table — `(currency, rate, recorded_at)`. Same daily snapshot approach. Stores CAD, EUR, GBP, AUD, JPY relative to USD.
+- `priceSync.ts` — queries `collection_entries UNION wishlist_entries` for all distinct `(card_id, set_code, rarity)` across all users. Groups by card_id (one API call per card fetches all its set prices). Inserts matching snapshots. Sleeps 300ms between cards to avoid hammering the free YGOPRODeck API.
+- `GET /prices` (authenticated) — returns price history for a specific `(cardId, setCode, rarity)` over a configurable window (default 90 days). JOINs `exchange_rates` on `recorded_at` so each data point carries historically accurate rates — not today's rate applied backward.
+- `GET /prices/rates` (public) — returns the most recent exchange rates. Used by guests who can't call `/prices` but still want currency conversion in the card detail modal.
+- `POST /prices/sync` (authenticated) — manual trigger for testing. Remove before public launch.
+
+**Frontend:**
+- `PriceChart.tsx` — SVG line chart with area fill, hover tooltips, and Y-axis labels. Renders inside `CardDetailModal` when price history is available. Currency selector converts all data points using the historically accurate rates baked into each `PricePoint`.
+- Exchange rates fetched once on app load and stored in context; used for current-price display throughout the app.
+
+**Key decision — historically accurate rates:** When you join `price_history` with `exchange_rates` on `recorded_at`, each data point reflects what the exchange rate was on that actual day, not what it is today. Without this join, applying today's rate to a 6-month-old USD price in a volatile currency produces a misleading chart.
+
+---
+
+## 9. Phase 7: Binder Backend Sync (Complete)
+
+### What was built
+
+Binders are now fully synced to the server for logged-in users. Previously binders were local-only (localStorage) and reset to `[]` on login.
+
+**Schema changes:**
+- `binder_slots` uses `entry_key VARCHAR` + `source VARCHAR` instead of a UUID FK — consistent with how collection/wishlist entries are identified in the frontend.
+- `source` CHECK constraint updated to `('collection', 'wishlist')` (was `'toGet'`).
+
+**API surface added:**
+```
+GET    /binders                      All binders with pages + slots (nested JSON)
+POST   /binders                      Create a binder (returns server-assigned UUID)
+PUT    /binders/:id                  Rename or update cover
+DELETE /binders/:id                  Delete binder + cascade pages + slots
+POST   /binders/:id/pages            Add a page (returns server-assigned UUID)
+DELETE /binders/:id/pages/:pid       Remove a page
+PUT    /binders/:id/pages/:pid/slots/:pos   Assign or clear a slot
+```
+
+**Frontend wiring:**
+- `CREATE_BINDER` and `ADD_BINDER_PAGE` are **non-optimistic** — the server UUID is needed before dispatch so the frontend can reference it in subsequent slot assignments. Both `await` the API call, then dispatch with the server-returned `id`.
+- All other binder actions (`RENAME_BINDER`, `DELETE_BINDER`, `REMOVE_BINDER_PAGE`, `ASSIGN_BINDER_SLOT`, `MOVE_BINDER_SLOT`) are optimistic — dispatch fires immediately, API call is fire-and-forget.
+- `SyncPrompt` now imports binders on "Import" (was sending `binders: []` before — a bug where local binders were silently discarded on first login).
+
+**Why non-optimistic for create/add-page:** Creating a binder or page requires a server-assigned UUID. Any slot assignment that follows needs to reference the correct UUID. If you dispatch optimistically with a client-side UUID and the POST fails, every subsequent slot assignment will silently 404. The roundtrip cost (one extra network hop) on create is acceptable; all subsequent interactions are optimistic.
+
+---
+
 ## 6. What's Left to Build
 
 | Phase | Feature | Notes |
 |---|---|---|
-| 6 | Price history | Daily price snapshots stored in DB. Requires a cron job on the backend to fetch prices for all tracked cards. |
-| 7 | Binder backend sync | Binders currently local-only. Need binder CRUD routes wired to `CollectionContext` the same way collection/toGet are. |
+| 6 | ✅ Price history | Done — daily snapshots, exchange rates, SVG chart in card modal. |
+| 7 | ✅ Binder backend sync | Done — binders fully synced, non-optimistic create/add-page. |
 | 8 | Mobile app | React Native, shares the Phase 5 backend. |
 | — | Google OAuth | Deferred — user wants to implement to learn it. |
-| — | Resend domain verification | Required before sending emails to real users. |
 | — | Est. Value stat on Dashboard | Needs bulk price fetching in the backend. |
-| — | Deferred design | Binder book layout, page-turn animations, app-wide animation pass. |
 
 ---
 
