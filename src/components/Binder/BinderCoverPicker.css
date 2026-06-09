@@ -41,7 +41,7 @@
   cursor: pointer;
   background: var(--surface-2);
   padding: 0;
-  aspect-ratio: 421 / 614;
+  aspect-ratio: 1;
   transition: border-color 0.15s, transform 0.12s;
 }
 .cover-picker__item:hover {

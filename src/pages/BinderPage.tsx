@@ -42,8 +42,7 @@ export function BinderPage() {
 
   const binder: Binder | null =
     state.binders.find((b) => b.id === selectedBinderId) ??
-    state.binders[0] ??
-    null;
+    (state.binders.length === 1 ? state.binders[0] : null);
 
   // ── Spread calculations ────────────────────────────────────────────────────
   // Spread 0: cover (left) + pages[0] (right)
@@ -357,54 +356,94 @@ export function BinderPage() {
         Binders
       </h1>
 
-      {/* Binder selector */}
-      <div className="binder-selector">
-        {state.binders.length > 0 ? (
-          <select
-            className="binder-selector__select"
-            value={binder?.id ?? ''}
-            onChange={(e) => {
-              setSelectedBinderId(e.target.value);
-              setDisplayedSpreadIndex(0);
-              setPendingSpreadIndex(null);
-              setAnimState('idle');
-            }}
-          >
-            {state.binders.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} ({b.cols}×{b.rows})
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', flex: 1 }}>
-            No binders yet
-          </span>
-        )}
-        <div className="binder-selector__actions">
-          <button className="btn btn-primary" onClick={openCreate}>+ New</button>
-          {binder && (
-            <>
-              <button className="btn btn-ghost" onClick={openRename}>Rename</button>
-              <button className="btn btn-ghost" onClick={openCover}>Cover</button>
-              <button className="btn btn-danger" onClick={openDelete}>Delete</button>
-            </>
-          )}
-        </div>
-      </div>
+      {/* ── No binders ── */}
+      {state.binders.length === 0 && (
+        <>
+          <div className="binder-selector">
+            <div className="binder-selector__actions">
+              <button className="btn btn-primary" onClick={openCreate}>+ New</button>
+            </div>
+          </div>
+          <div className="empty-state">
+            <strong>No binders yet</strong>
+            <p>Create a binder to start planning your pages.</p>
+            <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={openCreate}>
+              Create your first binder
+            </button>
+          </div>
+        </>
+      )}
 
-      {!binder && (
-        <div className="empty-state">
-          <strong>No binders yet</strong>
-          <p>Create a binder to start planning your pages.</p>
-          <button className="btn btn-primary" style={{ marginTop: '1rem' }} onClick={openCreate}>
-            Create your first binder
-          </button>
+      {/* ── Binder selection screen ── */}
+      {state.binders.length > 1 && !binder && (
+        <div className="binder-selection-screen">
+          <div className="binder-selection-header">
+            <button className="btn btn-primary" onClick={openCreate}>+ New</button>
+          </div>
+          <div className="binder-selection-grid">
+            {state.binders.map((b) => {
+              const allSlots = b.pages.flatMap((p) => p.slots);
+              const totalSlots = allSlots.length;
+              const filledSlots = allSlots.filter(Boolean).length;
+              const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
+              const pct = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
+              return (
+                <button
+                  key={b.id}
+                  className="binder-card"
+                  onClick={() => {
+                    setSelectedBinderId(b.id);
+                    setDisplayedSpreadIndex(0);
+                    setPendingSpreadIndex(null);
+                    setAnimState('idle');
+                  }}
+                >
+                  <div className="binder-card__cover">
+                    {b.coverUrl ? (
+                      <img src={b.coverUrl} alt={b.name} className="binder-card__cover-img" />
+                    ) : (
+                      <div className="binder-card__cover-placeholder">
+                        <span className="binder-card__cover-name">{b.name}</span>
+                        <span className="binder-card__cover-size">{b.cols}×{b.rows}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="binder-card__info">
+                    <span className="binder-card__name">{b.name}</span>
+                    <span className="binder-card__meta">
+                      {b.cols}×{b.rows} · {b.pages.length} {b.pages.length === 1 ? 'page' : 'pages'}
+                    </span>
+                    {totalSlots > 0 && (
+                      <span className="binder-card__fill">{filledSlots}/{totalSlots} · {pct}%</span>
+                    )}
+                    {ownedSlots > 0 && (
+                      <span className="binder-card__owned">{ownedSlots} owned</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
+      {/* ── Binder view ── */}
       {binder && (
         <>
+          <div className="binder-selector">
+            {state.binders.length > 1 && (
+              <button className="btn btn-ghost" onClick={() => setSelectedBinderId(null)}>
+                ← All Binders
+              </button>
+            )}
+            <div className="binder-selector__actions">
+              <button className="btn btn-primary" onClick={openCreate}>+ New</button>
+              <button className="btn btn-ghost" onClick={openRename}>Rename</button>
+              <button className="btn btn-ghost" onClick={openCover}>Cover</button>
+              <button className="btn btn-danger" onClick={openDelete}>Delete</button>
+            </div>
+          </div>
+
           {/* Navigation bar */}
           <div className="binder-page-nav">
             <button

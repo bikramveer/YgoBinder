@@ -136,33 +136,46 @@
   color: var(--text-muted);
 }
 
-.dashboard__binder-row__right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.3rem;
+.dashboard__binder-row__owned {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.dashboard__binder-row__value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* ── Circular binder ring ── */
+.dashboard__binder-ring {
   flex-shrink: 0;
 }
 
-.dashboard__binder-row__slot-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  white-space: nowrap;
+.dashboard__ring-track {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 4;
 }
 
-.dashboard__mini-bar {
-  width: 72px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 0;
-  overflow: hidden;
+.dashboard__ring-fill {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
 }
 
-.dashboard__mini-bar__fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 0;
-  transition: width 0.3s ease;
+.dashboard__ring-pct {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.dashboard__ring-sub {
+  fill: var(--text-muted);
+  font-size: 5.5px;
 }
 
 .dashboard__binder-row__arrow {

@@ -23,6 +23,17 @@ export function getCachedCard(cardId: number): YGOCard | null {
   }
 }
 
+export function getPriceFromCache(cardId: number, setCode: string, rarity: string): number | null {
+  const card = getCachedCard(cardId);
+  if (!card) return null;
+  const match = card.card_sets?.find(
+    (s) => s.set_code === setCode && s.set_rarity === rarity,
+  );
+  if (!match) return null;
+  const price = parseFloat(match.set_price);
+  return isNaN(price) || price <= 0 ? null : price;
+}
+
 export function setCachedCard(cardId: number, cardData: YGOCard): void {
   const entry: PriceCacheEntry = {
     cardData,

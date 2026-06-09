@@ -1,13 +1,76 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useCollection } from '../context/CollectionContext';
-import { CONDITION_LABELS } from '../types';
-import type { CollectionEntry } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { CONDITION_LABELS, SUPPORTED_CURRENCIES } from '../types';
+import type { CollectionEntry, CurrencyCode } from '../types';
+import { pricesApi } from '../services/api';
+import { getPriceFromCache } from '../utils/priceCache';
 import './DashboardPage.css';
+
+const RING_R = 20;
+const RING_CIRC = 2 * Math.PI * RING_R;
+
+function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, number>): string {
+  const rate = currency === 'USD' ? 1 : (rates[currency] ?? 1);
+  const val = usd * rate;
+  const sym = SUPPORTED_CURRENCIES.find((c) => c.code === currency)?.symbol ?? '$';
+  if (currency === 'JPY') return `${sym}${Math.round(val).toLocaleString()}`;
+  return `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function BinderRing({ pct, ownedSlots, totalSlots }: { pct: number; ownedSlots: number; totalSlots: number }) {
+  const clamped = Math.max(0, Math.min(1, pct));
+  const offset = RING_CIRC * (1 - clamped);
+  const active = clamped > 0;
+  return (
+    <div className="dashboard__binder-ring">
+      <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+        <circle cx="24" cy="24" r={RING_R} className="dashboard__ring-track" />
+        {active && (
+          <circle
+            cx="24" cy="24" r={RING_R}
+            className="dashboard__ring-fill"
+            strokeDasharray={RING_CIRC}
+            strokeDashoffset={offset}
+            transform="rotate(-90 24 24)"
+          />
+        )}
+        <text x="24" y="26" textAnchor="middle" className="dashboard__ring-pct">
+          {Math.round(clamped * 100)}%
+        </text>
+        <text x="24" y="33.5" textAnchor="middle" className="dashboard__ring-sub">
+          {ownedSlots}/{totalSlots}
+        </text>
+      </svg>
+    </div>
+  );
+}
 
 export function DashboardPage() {
   const { state, stillNeeded } = useCollection();
+  const { isLoggedIn, preferredCurrency } = useAuth();
   const [selectedRecent, setSelectedRecent] = useState<CollectionEntry | null>(null);
+  const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
+  const [rates, setRates] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    pricesApi.getLatestRates().then(setRates).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      pricesApi.getCollectionValue().then(setPriceMap).catch(() => {});
+    } else {
+      // Build from localStorage price cache for guests
+      const map = new Map<string, number>();
+      for (const entry of state.collection) {
+        const price = getPriceFromCache(entry.cardId, entry.setCode, entry.rarity);
+        if (price !== null) map.set(entry.id, price);
+      }
+      setPriceMap(map);
+    }
+  }, [isLoggedIn, state.collection]);
 
   const totalUnique = state.collection.length;
 
@@ -16,29 +79,35 @@ export function DashboardPage() {
     [state.collection],
   );
 
+  const estValue = useMemo(() => {
+    let total = 0;
+    for (const entry of state.collection) {
+      const price = priceMap.get(entry.id);
+      if (!price) continue;
+      const qty = entry.copies.reduce((s, c) => s + c.quantity, 0);
+      total += price * qty;
+    }
+    return total;
+  }, [state.collection, priceMap]);
+
   const binderStats = useMemo(
     () =>
       state.binders.map((binder) => {
-        const totalSlots = binder.pages.reduce((s, p) => s + p.slots.length, 0);
-        const filledSlots = binder.pages.reduce(
-          (s, p) => s + p.slots.filter(Boolean).length,
-          0,
-        );
-        const emptySlots = totalSlots - filledSlots;
-        let slotLabel: string;
-        if (totalSlots === 0) {
-          slotLabel = 'No pages';
-        } else if (filledSlots === totalSlots) {
-          slotLabel = 'Full';
-        } else if (filledSlots > emptySlots) {
-          slotLabel = `${emptySlots} empty slot${emptySlots !== 1 ? 's' : ''}`;
-        } else {
-          slotLabel = `${filledSlots} filled slot${filledSlots !== 1 ? 's' : ''}`;
-        }
+        const allSlots = binder.pages.flatMap((p) => p.slots);
+        const totalSlots = allSlots.length;
+        const filledSlots = allSlots.filter(Boolean).length;
+        const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
+        const wishlistSlots = allSlots.filter((s) => s?.source === 'wishlist').length;
         const pctFull = totalSlots > 0 ? filledSlots / totalSlots : 0;
-        return { binder, slotLabel, pctFull };
+        let binderValue = 0;
+        for (const slot of allSlots) {
+          if (slot?.source === 'collection') {
+            binderValue += priceMap.get(slot.entryId) ?? 0;
+          }
+        }
+        return { binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue };
       }),
-    [state.binders],
+    [state.binders, priceMap],
   );
 
   const wishlistProgress = useMemo(() => {
@@ -92,9 +161,13 @@ export function DashboardPage() {
           <span className="dashboard__stat-label">On Wishlist</span>
         </div>
         <div className="dashboard__stat-tile">
-          <span className="dashboard__stat-value dashboard__stat-value--dim">$-.--</span>
+          <span className={`dashboard__stat-value${(!isLoggedIn || estValue === 0) ? ' dashboard__stat-value--dim' : ''}`}>
+            {!isLoggedIn ? '$-.--' : estValue > 0 ? formatValue(estValue, preferredCurrency, rates) : '$0.00'}
+          </span>
           <span className="dashboard__stat-label">Est. Value</span>
-          <span className="dashboard__stat-note">coming soon</span>
+          {!isLoggedIn && (
+            <span className="dashboard__stat-note">Sign in to track value</span>
+          )}
         </div>
       </div>
 
@@ -111,23 +184,27 @@ export function DashboardPage() {
         <section className="dashboard__section">
           <h2 className="dashboard__section-title">Binders</h2>
           <div className="dashboard__binder-list">
-            {binderStats.map(({ binder, slotLabel, pctFull }) => (
+            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => (
               <Link key={binder.id} to="/binder" className="dashboard__binder-row">
                 <div className="dashboard__binder-row__info">
                   <span className="dashboard__binder-row__name">{binder.name}</span>
                   <span className="dashboard__binder-row__meta">
                     {binder.cols}×{binder.rows} · {binder.pages.length} page{binder.pages.length !== 1 ? 's' : ''}
                   </span>
+                  {(ownedSlots > 0 || wishlistSlots > 0) && (
+                    <span className="dashboard__binder-row__owned">
+                      {ownedSlots > 0 && `${ownedSlots} owned`}
+                      {ownedSlots > 0 && wishlistSlots > 0 && ' · '}
+                      {wishlistSlots > 0 && `${wishlistSlots} wishlisted`}
+                    </span>
+                  )}
+                  {isLoggedIn && binderValue > 0 && (
+                    <span className="dashboard__binder-row__value">
+                      {formatValue(binderValue, preferredCurrency, rates)}
+                    </span>
+                  )}
                 </div>
-                <div className="dashboard__binder-row__right">
-                  <span className="dashboard__binder-row__slot-label">{slotLabel}</span>
-                  <div className="dashboard__mini-bar">
-                    <div
-                      className="dashboard__mini-bar__fill"
-                      style={{ width: `${Math.round(pctFull * 100)}%` }}
-                    />
-                  </div>
-                </div>
+                <BinderRing pct={pctFull} ownedSlots={filledSlots} totalSlots={totalSlots} />
                 <span className="dashboard__binder-row__arrow">›</span>
               </Link>
             ))}
