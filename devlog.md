@@ -872,15 +872,64 @@ Picker shows 4 thumbnails (totalArtworks = 4). Adding from RA02 shows alternate 
 
 ---
 
+## 11. Price History Relocation + Search/Browse Improvements (2026-06-09)
+
+### Price history moved from CardDetailModal to Collection/Wishlist
+
+**Why:** Price history only exists for cards users are already tracking (the cron only syncs cards in `collection_entries` / `wishlist_entries`). Showing a price chart in the general search modal was misleading — it would always be empty for most cards. The Collection and Wishlist entry modals are exactly where users who care about price trends will look.
+
+**What changed in `CardDetailModal.tsx`:**
+- Removed the `↗` price history button from the set printings table
+- Removed the expandable chart row (`card-detail__chart-row`)
+- Removed `historyKey`, `isExpanded`, `expandedSet`, `historyMap`, `historyLoading`, `toggleHistory`, and the `Fragment` wrapper around table rows
+- Removed imports: `Fragment`, `PriceChart`, `PricePoint`, `isLoggedIn`
+- Dead CSS removed: `.card-detail__history-btn`, `.card-detail__chart-row`, `.card-detail__chart-guest`, `.card-detail__price-cell`
+
+**What was added to `CollectionPage.tsx` and `WishlistPage.tsx`:**
+- `PriceChart` and `pricesApi` imported into both pages
+- `selectedEntry` triggers a `pricesApi.getHistory()` fetch in a `useEffect` (cancellable via `cancelled` flag)
+- Price history section added to the entry detail modal — shows spinner while loading, chart when data exists, and "Price tracking begins the day you add a card" when empty
+- Guests see "Sign in to track price history" instead
+- **"View all printings" button** added to the entry modal footer — closes the entry modal and opens `CardDetailModal` with that card's ID, so users can see other printings without leaving the page
+
+**`index.css` changes:**
+- `max-width` on `.entry-modal` widened 440px → 520px to fit the chart
+- Added `.entry-modal__note` — small italic muted text for contextual messages
+
+---
+
+### Search autopopulates / No-set card filtering (2026-06-09)
+
+**Problem 1:** SearchPage was blank until the user typed. CardPickerModal's "All Cards" tab already autopopulated with newest cards — inconsistent.
+
+**Problem 2:** The "All Cards" tab (and now Search) default view used `sort=new`, which returns the very latest announced cards. These are pre-release OCG cards that haven't been given TCG set data yet — clicking them in the binder picker opened the configure panel with "No sets available" and a disabled "Add to tray" button. Confusing.
+
+**Fix — filter cards with no sets:**
+- `useCardSearch.ts`: removed the `if (!query.trim()) return` early exit. Hook now always fetches. Results are filtered to `(c.card_sets?.length ?? 0) > 0` before being returned.
+- `CardPickerModal.tsx`: same filter applied to the All Cards tab's own fetch.
+
+**Fix — change default sort:**
+- `ygoprodeck.ts`: empty-query default changed from `sort=new` to `sort=views&sortorder=desc`.
+- `sort=views desc` returns the most-viewed cards first (Dark Magician, Blue-Eyes, Ash Blossom, etc.) — these are established cards that always have sets.
+- `sort=new` was returning only brand-new set-less cards, making the filtered view completely empty (as confirmed in testing).
+
+**Fix — SearchPage autopopulates:**
+- Removed `{!query && <prompt>}` / `{query && <CardGrid>}` guards.
+- Added `"Popular cards"` section label shown above the grid when query is empty and results are loaded.
+- Hook fires immediately (0ms delay) for empty query; still debounces 350ms when the user is typing.
+
+---
+
 ## 6. What's Left to Build
 
 | Phase | Feature | Notes |
 |---|---|---|
-| 6 | ✅ Price history | Done — daily snapshots, exchange rates, SVG chart in card modal. |
+| 6 | ✅ Price history | Done — daily snapshots, exchange rates; chart now in Collection/Wishlist modals |
 | 7 | ✅ Binder backend sync | Done — binders fully synced, non-optimistic create/add-page. |
 | 8 | Mobile app | React Native, shares the Phase 5 backend. |
 | — | Google OAuth | Deferred — user wants to implement to learn it. |
 | — | Est. Value stat on Dashboard | Needs bulk price fetching in the backend. |
+| — | Quarter Century Stampede printings | Deferred — YGOPRODeck API limitation (one entry per set_code+rarity). |
 
 ---
 
