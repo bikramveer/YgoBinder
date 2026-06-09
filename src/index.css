@@ -1,37 +1,80 @@
-/* ── Design tokens — Eternal Duelist ────────────────────────────────────── */
+/* ── Design tokens — KaibaCorp Terminal (light) ──────────────────────────── */
 :root {
-  --bg:               #131313;
-  --surface:          #1c1b1b;
-  --surface-2:        #201f1f;
-  --surface-3:        #2a2a2a;
-  --surface-4:        #353534;
-  --accent:           #f2ca50;
-  --accent-dim:       #d4af37;
-  --accent-glow:      rgba(242, 202, 80, 0.4);
-  --on-accent:        #3c2f00;
-  --secondary:        #960711;
-  --secondary-bright: #ffb4ac;
-  --text:             #e5e2e1;
-  --text-muted:       #d0c5af;
-  --text-dim:         #99907c;
-  --danger:           #ffb4ab;
-  --success:          #4cbc8a;
-  --border:           #4d4635;
-  --border-light:     #99907c;
+  --bg:               #eef2fa;
+  --surface:          #ffffff;
+  --surface-2:        #e8edf8;
+  --surface-3:        #d4ddf2;
+  --surface-4:        #c0cce8;
+  --surface-glass:    rgba(255, 255, 255, 0.92);
+
+  --accent:           #1a3db5;
+  --accent-dim:       #1432a0;
+  --accent-glow:      rgba(26, 61, 181, 0.3);
+  --on-accent:        #ffffff;
+
+  --secondary:        #c0392b;
+  --secondary-bright: #e84040;
+
+  --text:             #0c1a42;
+  --text-muted:       #364f88;
+  --text-dim:         #6878a8;
+
+  --danger:           #c0392b;
+  --success:          #1e8a54;
+
+  --border:           #b4c4e0;
+  --border-light:     #d0dcf0;
 
   --radius-sm:        0;
   --radius:           0;
   --radius-lg:        0;
 
-  --shadow:           0 2px 8px rgba(0, 0, 0, 0.6);
-  --shadow-lg:        0 8px 32px rgba(0, 0, 0, 0.8);
-  --glow:             0 0 20px rgba(242, 202, 80, 0.4);
-  --glow-sm:          0 0 10px rgba(242, 202, 80, 0.35);
+  --shadow:           0 2px 8px rgba(12, 26, 66, 0.1);
+  --shadow-lg:        0 8px 32px rgba(12, 26, 66, 0.16);
+  --glow:             0 0 20px rgba(26, 61, 181, 0.3);
+  --glow-sm:          0 0 10px rgba(26, 61, 181, 0.22);
+
+  --modal-bg:         rgba(12, 26, 66, 0.35);
 
   --nav-height:       56px;
   --font:             'Libre Franklin', system-ui, -apple-system, sans-serif;
   --font-display:     'Orbitron', sans-serif;
   --font-mono:        'JetBrains Mono', monospace;
+}
+
+/* ── Dark mode override — Shadow Hologram ─────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:               #060c1c;
+  --surface:          #0b1830;
+  --surface-2:        #0e2040;
+  --surface-3:        #142850;
+  --surface-4:        #1c3460;
+  --surface-glass:    rgba(11, 24, 48, 0.92);
+
+  --accent:           #3a8fff;
+  --accent-dim:       #2a6fd0;
+  --accent-glow:      rgba(58, 143, 255, 0.45);
+  --on-accent:        #ffffff;
+
+  --secondary:        #e84560;
+  --secondary-bright: #ff6b80;
+
+  --text:             #e0eaff;
+  --text-muted:       #7898c8;
+  --text-dim:         #4060a0;
+
+  --danger:           #ff6b6b;
+  --success:          #4ecb8a;
+
+  --border:           #1c3460;
+  --border-light:     #2a4878;
+
+  --shadow:           0 2px 8px rgba(0, 0, 0, 0.7);
+  --shadow-lg:        0 8px 32px rgba(0, 0, 0, 0.9);
+  --glow:             0 0 20px rgba(58, 143, 255, 0.45);
+  --glow-sm:          0 0 10px rgba(58, 143, 255, 0.35);
+
+  --modal-bg:         rgba(0, 8, 24, 0.75);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -56,7 +99,7 @@ body {
 
 h1, h2, h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.04em;
 }
 
 img {
@@ -149,8 +192,8 @@ input:focus, select:focus, textarea:focus {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(30, 0, 50, 0.55);
-  backdrop-filter: blur(8px);
+  background: var(--modal-bg);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;

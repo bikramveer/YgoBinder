@@ -15,7 +15,7 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(19, 19, 19, 0.9);
+  background: var(--surface-glass);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
@@ -87,7 +87,7 @@
   border-radius: 0;
   overflow: hidden;
   border: 1px solid var(--accent);
-  box-shadow: var(--glow), 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: var(--glow), var(--shadow-lg);
 }
 
 .landing__screenshot-wrap img {

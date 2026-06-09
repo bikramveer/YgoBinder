@@ -28,7 +28,7 @@
 .binder-size-picker__cell--active {
   background: var(--accent);
   border-color: var(--accent-dim);
-  box-shadow: 0 0 0 1px rgba(242, 202, 80, 0.3);
+  box-shadow: 0 0 0 1px var(--accent-glow);
 }
 
 .binder-size-picker__label {
