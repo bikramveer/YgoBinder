@@ -37,6 +37,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const { preferredCurrency, isLoggedIn } = useAuth();
 
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
+  const [headerArtUrl, setHeaderArtUrl] = useState<string | null>(null);
   const [setFilter, setSetFilter] = useState('');
   const [addState, setAddState] = useState<AddState | null>(null);
   const [setArtworkMap, setSetArtworkMap] = useState<Map<string, number>>(new Map());
@@ -53,6 +54,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   useEffect(() => {
     if (cardId !== null) fetchCard(cardId);
     setSelectedImageIdx(0);
+    setHeaderArtUrl(null);
     setSetFilter('');
     setAddState(null);
     setExpandedSet(null);
@@ -129,7 +131,6 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const selectedImage = images[selectedImageIdx] ?? images[0];
 
   // Total artwork count: max of what YGOPRODeck provides and what Yugipedia artMap reveals.
-  // e.g. I:P Masquerena: YGOPRODeck gives 2, artMap has RA05→2 and LOCH→3, so totalArtworks=4.
   const totalArtworks = useMemo(() => {
     if (setArtworkMap.size === 0) return images.length;
     const maxArtIdx = Math.max(...setArtworkMap.values());
@@ -138,7 +139,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
 
   // Returns the best available image URL for a given artwork index.
   // YGOPRODeck first; if the index is beyond what YGOPRODeck has, looks up a representative
-  // Yugipedia CDN URL from galleryMap (any set that uses that artwork index).
+  // Yugipedia CDN URL from galleryMap. Returns '' (not images[0]) when nothing is found,
+  // so callers can detect a missing image rather than silently getting the first artwork.
   const getArtworkUrl = useCallback((artIdx: number, full = false): string => {
     const ygp = images[artIdx];
     if (ygp) return full ? ygp.image_url : ygp.image_url_small;
@@ -152,8 +154,23 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
         }
       }
     }
-    return full ? (images[0]?.image_url ?? '') : (images[0]?.image_url_small ?? '');
+    return '';
   }, [images, setArtworkMap, galleryMap]);
+
+  // Deduplicated picker indices: skip any artwork index that has no image or resolves to a
+  // URL already shown by an earlier index (Yugipedia missing entries fall back identically).
+  const artworkIndices = useMemo(() => {
+    const seen = new Set<string>();
+    const result: number[] = [];
+    for (let i = 0; i < totalArtworks; i++) {
+      const url = getArtworkUrl(i);
+      if (url && !seen.has(url)) {
+        seen.add(url);
+        result.push(i);
+      }
+    }
+    return result;
+  }, [totalArtworks, getArtworkUrl]);
 
   const filteredSets = (fullSets ?? []).filter((s) =>
     setFilter === '' ||
@@ -166,16 +183,11 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     const setPrefix = set.set_code.split('-')[0];
     const effectiveIdx = setArtworkMap.get(setPrefix) ?? 0;
     const effectiveImage = images[effectiveIdx] ?? images[0];
-    // Update main card image to the printing's detected artwork while the form is shown.
-    // This is safe: Art column uses setArtworkMap directly, so picker state doesn't bleed there.
-    setSelectedImageIdx(effectiveIdx);
-    // Prefer Yugipedia's rarity-specific image (e.g. RA05's unique JP-text art that
-    // YGOPRODeck doesn't have); fall back to YGOPRODeck image_url_small.
     const ygpUrl = yugipediaImageUrl(galleryMap, setPrefix, set.set_rarity, effectiveIdx);
     setAddState({
       set, mode, condition: 'NM', quantity: 1,
       artworkId: effectiveImage?.id ?? 0,
-      artworkUrl: ygpUrl ?? effectiveImage?.image_url_small ?? '',
+      artworkUrl: ygpUrl ?? effectiveImage?.image_url ?? effectiveImage?.image_url_small ?? '',
     });
   };
 
@@ -221,8 +233,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     setAddState(null);
   };
 
-  const colCount = totalArtworks > 1 ? 6 : 5;
-  const mainArtUrl = getArtworkUrl(selectedImageIdx, true);
+  const colCount = artworkIndices.length > 1 ? 6 : 5;
+  const mainArtUrl = addState?.artworkUrl || headerArtUrl || getArtworkUrl(selectedImageIdx, true);
 
   return (
     <div className="modal-backdrop" onClick={addState ? undefined : onClose}>
@@ -252,16 +264,16 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                     <div className="card-detail__image-placeholder">No image</div>
                   )}
 
-                  {totalArtworks > 1 && !addState && (
+                  {artworkIndices.length > 1 && !addState && (
                     <div className="card-detail__artworks">
-                      <span className="card-detail__artworks-label">Select artwork</span>
-                      {Array.from({ length: totalArtworks }, (_, i) => (
+                      <span className="card-detail__artworks-label">View alternate arts</span>
+                      {artworkIndices.map((i) => (
                         <img
                           key={i}
                           src={getArtworkUrl(i)}
                           alt={`Artwork ${i + 1}`}
-                          className={`card-detail__art-thumb${i === selectedImageIdx ? ' card-detail__art-thumb--active' : ''}`}
-                          onClick={() => setSelectedImageIdx(i)}
+                          className={`card-detail__art-thumb${!headerArtUrl && i === selectedImageIdx ? ' card-detail__art-thumb--active' : ''}`}
+                          onClick={() => { setSelectedImageIdx(i); setHeaderArtUrl(null); }}
                           title={`Artwork ${i + 1}`}
                         />
                       ))}
@@ -374,7 +386,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                           <table className="card-detail__sets-table">
                             <thead>
                               <tr>
-                                {totalArtworks > 1 && <th className="card-detail__th-art">Art</th>}
+                                {artworkIndices.length > 1 && <th className="card-detail__th-art">Art</th>}
                                 <th>Set</th>
                                 <th>Code</th>
                                 <th>Rarity</th>
@@ -385,15 +397,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                             <tbody>
                               {filteredSets.map((set) => {
                                 const entryId = makeEntryId(headerCard.id, set);
-                                const selectedArtId = selectedImage?.id;
-                                const inCollection = state.collection.some(
-                                  (e) => e.id === entryId &&
-                                    (e.artworkId === undefined || e.artworkId === selectedArtId),
-                                );
-                                const inWishlist = state.wishlist.some(
-                                  (e) => e.id === entryId &&
-                                    (e.artworkId === undefined || e.artworkId === selectedArtId),
-                                );
+                                const inCollection = state.collection.some((e) => e.id === entryId);
+                                const inWishlist = state.wishlist.some((e) => e.id === entryId);
                                 const priceUsd = parseFloat(set.set_price);
                                 const hasPrice = priceUsd > 0;
                                 const historyKey = `${set.set_code}|${set.set_rarity}`;
@@ -402,20 +407,20 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                 const setPrefix = set.set_code.split('-')[0];
                                 const artIdx = setArtworkMap.get(setPrefix) ?? 0;
                                 const artImg = images[artIdx] ?? images[0];
-                                const ygpUrl = totalArtworks > 1
+                                const ygpUrl = artworkIndices.length > 1
                                   ? yugipediaImageUrl(galleryMap, setPrefix, set.set_rarity, artIdx)
                                   : null;
 
                                 return (
                                   <Fragment key={`${set.set_code}-${set.set_rarity_code}`}>
                                     <tr>
-                                      {totalArtworks > 1 && (
+                                      {artworkIndices.length > 1 && (
                                         <td className="card-detail__td-art">
                                           <img
                                             src={ygpUrl ?? artImg.image_url_small}
                                             title={`Artwork ${artIdx + 1} of ${totalArtworks}`}
                                             className="card-detail__art-col-thumb"
-                                            onClick={() => setSelectedImageIdx(artIdx)}
+                                            onClick={() => setHeaderArtUrl(ygpUrl ?? artImg?.image_url ?? artImg?.image_url_small ?? null)}
                                             onError={ygpUrl ? (e) => {
                                               (e.target as HTMLImageElement).src = artImg.image_url_small;
                                               (e.target as HTMLImageElement).onerror = null;

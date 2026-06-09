@@ -6,6 +6,13 @@
   display: flex;
   gap: 1rem;
   margin-bottom: 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .card-detail__image-col {
@@ -106,6 +113,7 @@
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
+  z-index: 2;
   width: 28px;
   height: 28px;
   border-radius: 0;
@@ -170,6 +178,7 @@
   flex-wrap: nowrap;
 }
 .card-detail__set-actions .btn { font-size: 0.72rem; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.card-detail__set-actions .btn:first-child { min-width: 6.5rem; justify-content: center; }
 
 .card-detail__in-list {
   font-size: 0.72rem;

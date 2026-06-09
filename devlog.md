@@ -754,6 +754,124 @@ PUT    /binders/:id/pages/:pid/slots/:pos   Assign or clear a slot
 
 ---
 
+## 10. Alternate Artwork Feature — Yugipedia Integration (2026-06-09)
+
+### What was built
+
+Per-printing rarity-specific card images in the CardDetailModal set table, an expanded artwork picker (beyond YGOPRODeck's 2-image limit), and a correct confirmation screen when adding a card.
+
+**New file:** `src/services/yugipediaArtwork.ts`
+
+**Edited:** `src/components/CardDetailModal/CardDetailModal.tsx`
+
+---
+
+### Why Yugipedia
+
+YGOPRODeck's API only provides up to 2 artwork variants for any card (`card_images` array). But some cards have 3 or more (e.g. I:P Masquerena has 4 distinct artworks across sets LOCH, RA02, RA05). YGOPRODeck also doesn't distinguish between rarity prints of the same set — it has one image per artwork index regardless of whether the UR, CR, or StR print looks different.
+
+Yugipedia stores per-printing gallery images following a consistent filename pattern:
+```
+CardName-SetCode-Region-RarityCode[-Edition][-AA].extension
+```
+For example: `InstantFusionMasquerena-RA02-EN-UR-1E.png`
+
+This means you can:
+1. Map each set printing to its artwork index (from the card's wikitext `| image =` section)
+2. Fetch the actual rarity-specific image URL for any `setCode|rarityCode` pair
+
+---
+
+### Three-call architecture
+
+Each card name triggers up to 3 sequential Yugipedia API calls (1 req/sec, 30-min localStorage cache keyed `ygo-data2-${cardName}`):
+
+**Call 1 — wikitext → `artMap`**
+```
+GET /api.php?action=query&prop=revisions&rvprop=content&titles={cardName}
+```
+Parses the `| image =` section for lines like `2; CardName-RA02-EN-UR-1E.png` → maps set code → artwork index (0-based: the wikitext uses 1-based).
+
+```ts
+const re = new RegExp(`(\\d+)(?:\\.\\d+)?;\\s+${cardNorm}-([A-Z0-9]+)-`, 'gm');
+// artMap = { QCAC: 0, L26D: 0, RA02: 1, RA05: 2, LOCH: 3 }
+```
+
+**Call 2 — gallery image list → `rawMap`**
+```
+GET /api.php?action=query&prop=images&imlimit=500&titles=Card gallery:{cardName}
+```
+Returns all filenames on the gallery page (~50–150 per card). `buildRawMap` parses each to extract `setPrefix|rarityCode` as the map key. **Only EN/NA/AE regions are kept** — this prevents JP/KR/SC filenames (which share the same key format) from overwriting the EN entry, since galleries list all regions.
+
+```ts
+const EN_REGIONS = new Set(['EN', 'NA', 'AE']);
+if (!EN_REGIONS.has(parts[1])) continue; // skip JP, KR, SP, SC, etc.
+```
+
+**Call 3 — imageinfo batch → CDN URLs**
+```
+GET /api.php?action=query&prop=imageinfo&iiprop=url&titles=File:name1|File:name2|...
+```
+Resolves each EN/NA filename to its actual Yugipedia CDN URL. Batched in groups of 50. Result stored as `galleryMap: Map<setPrefix|rarityCode, { baseUrl?, altUrl? }>`.
+
+---
+
+### The EN overwrite bug
+
+**Symptom:** Only 2 CDN URLs resolved out of 56 gallery images.
+
+**Root cause:** `buildRawMap` used `setPrefix|rarityCode` as the key with no region in it. Yugipedia galleries list EN first, then JP, KR, SC for the same set. The JP entry for `RA02|UR` was overwriting the EN entry, so by the time `buildRawMap` was done, most keys held JP filenames. The `EN_REGIONS` filter in the imageinfo stage then found almost nothing.
+
+**Fix:** Filter out non-EN regions *in `buildRawMap`* before any key is written — not after. This way JP/KR filenames never enter the map at all.
+
+**After fix:** `rawMap has 23 entries`, `24 EN/NA files to imageinfo-resolve`, `20 CDN URLs resolved` — working correctly.
+
+---
+
+### Fallback chain in `yugipediaImageUrl`
+
+When the CardDetailModal needs an image for a `(setPrefix, rarity)` pair:
+
+1. **Exact `setPrefix|rarityCode` match** — rarity-specific image exists (e.g. RA02 UR uploaded to Yugipedia)
+2. **Any image from the same set** — set exists but this specific rarity hasn't been uploaded yet (e.g. RA05 StR not yet on Yugipedia → use RA05 UR which was uploaded)
+3. **`null` → caller falls back to YGOPRODeck** — set has no Yugipedia gallery images at all
+
+---
+
+### CardDetailModal changes
+
+**`totalArtworks` (useMemo):** Expands the picker beyond YGOPRODeck's `images.length`. Uses the max artwork index seen in `artMap` (plus 1). If Yugipedia says a card has artworks at indices 0, 1, 2, 3 but YGOPRODeck only has 2 images, the picker shows 4 thumbnails.
+
+```ts
+const totalArtworks = useMemo(() => {
+  if (setArtworkMap.size === 0) return images.length;
+  const maxArtIdx = Math.max(...setArtworkMap.values());
+  return Math.max(images.length, maxArtIdx + 1);
+}, [images.length, setArtworkMap]);
+```
+
+**`getArtworkUrl` (useCallback):** Resolves an artwork index to a URL. Tries YGOPRODeck first (fast, reliable); if the index is beyond `images.length`, searches `galleryMap` for a Yugipedia CDN URL. Falls back to Art 1 if nothing found.
+
+**Art column:** Each row in the set printings table shows the correct per-printing image (Yugipedia CDN URL if available, YGOPRODeck if not). Clicking the thumbnail updates the main card header.
+
+**Confirmation screen:** When clicking "+ Collection" on a row, `openAddForm` looks up the artwork index from `artMap`, calls `yugipediaImageUrl` to get the rarity-specific URL, and stores it as `addState.artworkUrl`. The confirmation screen's header image (the main card display) updates to show exactly this image — no separate "Selected artwork" row.
+
+---
+
+### Key numbers for I:P Masquerena
+
+```
+artMap:    { QCAC: 0, L26D: 0, RA02: 1, RA05: 2, LOCH: 3 }
+rawMap:    23 entries
+EN/NA:     24 files sent to imageinfo
+Resolved:  20 CDN URLs
+galleryMap: 19 entries with URLs
+```
+
+Picker shows 4 thumbnails (totalArtworks = 4). Adding from RA02 shows alternate art; adding from RA05 shows the 3rd artwork image; adding from LOCH correctly uses the 4th. YGOPRODeck only provided 2.
+
+---
+
 ## 6. What's Left to Build
 
 | Phase | Feature | Notes |

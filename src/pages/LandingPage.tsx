@@ -99,14 +99,14 @@ export function LandingPage() {
       {/* ── Footer ── */}
       <footer className="landing__footer">
         <span>© {new Date().getFullYear()} YgoBindr</span>
-        <a
+        {/* <a
           href="https://github.com/bikramveer/YgoBindr"
           target="_blank"
           rel="noopener noreferrer"
           className="landing__footer-link"
         >
           GitHub
-        </a>
+        </a> */}
       </footer>
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}

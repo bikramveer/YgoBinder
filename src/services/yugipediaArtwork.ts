@@ -132,7 +132,6 @@ export async function getYugipediaData(cardName: string): Promise<YugipediaData>
     const rev   = page?.revisions?.[0];
     const text  = rev?.['*'] ?? rev?.slots?.main?.['*'] ?? '';
     artMap = text ? parseArtMap(text, cardNorm) : {};
-    console.log(`[yugipedia] artMap for "${cardName}":`, artMap);
   } catch (e) { console.error('[yugipedia] wikitext fetch failed:', e); }
 
   // ── Fetch 2: gallery image list → rawMap (filenames only) ──────────────────
@@ -146,7 +145,6 @@ export async function getYugipediaData(cardName: string): Promise<YugipediaData>
     const page      = Object.values(pages)[0] as { images?: Array<{ title: string }> } | undefined;
     const filenames = (page?.images ?? []).map((img) => img.title.replace(/^File:/, ''));
     rawMap = buildRawMap(filenames, cardNorm);
-    console.log(`[yugipedia] gallery returned ${filenames.length} images, rawMap has ${Object.keys(rawMap).length} entries`);
   } catch (e) { console.error('[yugipedia] gallery fetch failed:', e); }
 
   // ── Fetch 3: imageinfo for EN/NA files → resolve to CDN URLs ───────────────
@@ -160,7 +158,6 @@ export async function getYugipediaData(cardName: string): Promise<YugipediaData>
       if (EN_REGIONS.has(region)) toFetch.push(filename);
     }
   }
-  console.log(`[yugipedia] ${toFetch.length} EN/NA files to imageinfo-resolve`);
 
   const fileToUrl: Record<string, string> = {};
   for (let i = 0; i < toFetch.length; i += 50) {
@@ -181,7 +178,6 @@ export async function getYugipediaData(cardName: string): Promise<YugipediaData>
       }
     } catch (e) { console.error(`[yugipedia] imageinfo batch ${i / 50 + 1} failed:`, e); }
   }
-  console.log(`[yugipedia] resolved ${Object.keys(fileToUrl).length} CDN URLs`);
 
   // ── Build final galleryMap with actual CDN URLs ─────────────────────────────
   const galleryMap: Record<string, GalleryEntry> = {};
@@ -191,7 +187,6 @@ export async function getYugipediaData(cardName: string): Promise<YugipediaData>
     if (raw.alt  && fileToUrl[raw.alt])  entry.altUrl  = fileToUrl[raw.alt];
     if (entry.baseUrl || entry.altUrl) galleryMap[key] = entry;
   }
-  console.log(`[yugipedia] galleryMap: ${Object.keys(galleryMap).length} entries with URLs`);
 
   try {
     localStorage.setItem(cacheKey, JSON.stringify({ artMap, galleryMap, ts: Date.now() }));
