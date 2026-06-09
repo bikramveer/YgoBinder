@@ -75,7 +75,7 @@ export function DashboardPage() {
 
   return (
     <main className="page dashboard">
-      <h1 className="dashboard__title">YgoBindr</h1>
+      <h1 className="dashboard__title">Dashboard</h1>
 
       {/* ── Stats ── */}
       <div className="dashboard__stats">

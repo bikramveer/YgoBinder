@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
 import { useCardDetail } from '../../hooks/useCardDetail';
 import { useCollection } from '../../context/CollectionContext';
 import { useAuth } from '../../context/AuthContext';
@@ -7,6 +7,8 @@ import { CONDITION_ORDER, CONDITION_LABELS, formatPrice } from '../../types';
 import type { YGOCard, YGOCardSet, Condition } from '../../types';
 import { pricesApi } from '../../services/api';
 import type { PricePoint } from '../../services/api';
+import { getYugipediaData, yugipediaImageUrl } from '../../services/yugipediaArtwork';
+import type { GalleryEntry } from '../../services/yugipediaArtwork';
 import { PriceChart } from './PriceChart';
 import './CardDetailModal.css';
 
@@ -21,6 +23,8 @@ interface AddState {
   mode: 'collection' | 'wishlist';
   condition: Condition;
   quantity: number;
+  artworkId: number;
+  artworkUrl: string;
 }
 
 function makeEntryId(cardId: number, set: YGOCardSet): string {
@@ -35,6 +39,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [setFilter, setSetFilter] = useState('');
   const [addState, setAddState] = useState<AddState | null>(null);
+  const [setArtworkMap, setSetArtworkMap] = useState<Map<string, number>>(new Map());
+  const [galleryMap, setGalleryMap] = useState<Map<string, GalleryEntry>>(new Map());
 
   // Exchange rates — fetched once per modal open, used to convert prices in the table
   const [rates, setRates] = useState<Record<string, number>>({});
@@ -50,12 +56,28 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     setSetFilter('');
     setAddState(null);
     setExpandedSet(null);
+    setSetArtworkMap(new Map());
+    setGalleryMap(new Map());
   }, [cardId, fetchCard]);
 
   // Fetch exchange rates on open — public endpoint, works for guests too
   useEffect(() => {
     pricesApi.getLatestRates().then(setRates).catch(() => {});
   }, []);
+
+  // Fetch Yugipedia set→artwork map when a multi-art card loads
+  useEffect(() => {
+    const name = card?.name ?? initialCard?.name;
+    const imgCount = Math.max(
+      card?.card_images?.length ?? 0,
+      initialCard?.card_images?.length ?? 0,
+    );
+    if (!name || imgCount <= 1) return;
+    getYugipediaData(name).then(({ artMap, galleryMap: gm }) => {
+      setSetArtworkMap(artMap);
+      setGalleryMap(gm);
+    });
+  }, [card?.name, initialCard?.name]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -71,7 +93,6 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const toggleHistory = useCallback(async (set: YGOCardSet, cardIdNum: number) => {
     const key = `${set.set_code}|${set.set_rarity}`;
 
-    // Collapse if already open
     if (expandedSet === key) {
       setExpandedSet(null);
       return;
@@ -79,10 +100,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
 
     setExpandedSet(key);
 
-    // Only logged-in users can fetch history (endpoint requires auth)
     if (!isLoggedIn) return;
-
-    // Use cached data if already fetched
     if (historyMap[key] !== undefined) return;
 
     setHistoryLoading((prev) => ({ ...prev, [key]: true }));
@@ -101,8 +119,41 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
 
   const typeColor = headerCard ? getCardTypeColor(headerCard.frameType) : { bg: '#555', text: '#fff' };
   const typeLabel = headerCard ? getCardTypeLabel(headerCard.type, headerCard.frameType) : '';
-  const images = headerCard?.card_images ?? [];
+
+  // YGOPRODeck's ?id= endpoint strips alternate artworks; the ?fname= search endpoint
+  // returns all of them. initialCard comes from search, so prefer whichever has more images.
+  const ci = card?.card_images ?? [];
+  const ii = initialCard?.card_images ?? [];
+  const images = ii.length > ci.length ? ii : (ci.length > 0 ? ci : ii);
+
   const selectedImage = images[selectedImageIdx] ?? images[0];
+
+  // Total artwork count: max of what YGOPRODeck provides and what Yugipedia artMap reveals.
+  // e.g. I:P Masquerena: YGOPRODeck gives 2, artMap has RA05→2 and LOCH→3, so totalArtworks=4.
+  const totalArtworks = useMemo(() => {
+    if (setArtworkMap.size === 0) return images.length;
+    const maxArtIdx = Math.max(...setArtworkMap.values());
+    return Math.max(images.length, maxArtIdx + 1);
+  }, [images.length, setArtworkMap]);
+
+  // Returns the best available image URL for a given artwork index.
+  // YGOPRODeck first; if the index is beyond what YGOPRODeck has, looks up a representative
+  // Yugipedia CDN URL from galleryMap (any set that uses that artwork index).
+  const getArtworkUrl = useCallback((artIdx: number, full = false): string => {
+    const ygp = images[artIdx];
+    if (ygp) return full ? ygp.image_url : ygp.image_url_small;
+    for (const [setPrefix, idx] of setArtworkMap) {
+      if (idx !== artIdx) continue;
+      const pfx = `${setPrefix}|`;
+      for (const [key, entry] of galleryMap) {
+        if (key.startsWith(pfx)) {
+          const url = entry.baseUrl ?? entry.altUrl;
+          if (url) return url;
+        }
+      }
+    }
+    return full ? (images[0]?.image_url ?? '') : (images[0]?.image_url_small ?? '');
+  }, [images, setArtworkMap, galleryMap]);
 
   const filteredSets = (fullSets ?? []).filter((s) =>
     setFilter === '' ||
@@ -112,13 +163,25 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   );
 
   const openAddForm = (set: YGOCardSet, mode: 'collection' | 'wishlist') => {
-    setAddState({ set, mode, condition: 'NM', quantity: 1 });
+    const setPrefix = set.set_code.split('-')[0];
+    const effectiveIdx = setArtworkMap.get(setPrefix) ?? 0;
+    const effectiveImage = images[effectiveIdx] ?? images[0];
+    // Update main card image to the printing's detected artwork while the form is shown.
+    // This is safe: Art column uses setArtworkMap directly, so picker state doesn't bleed there.
+    setSelectedImageIdx(effectiveIdx);
+    // Prefer Yugipedia's rarity-specific image (e.g. RA05's unique JP-text art that
+    // YGOPRODeck doesn't have); fall back to YGOPRODeck image_url_small.
+    const ygpUrl = yugipediaImageUrl(galleryMap, setPrefix, set.set_rarity, effectiveIdx);
+    setAddState({
+      set, mode, condition: 'NM', quantity: 1,
+      artworkId: effectiveImage?.id ?? 0,
+      artworkUrl: ygpUrl ?? effectiveImage?.image_url_small ?? '',
+    });
   };
 
   const submitAdd = () => {
     if (!addState || !headerCard) return;
-    const { set, mode, condition, quantity } = addState;
-    const imageUrl = selectedImage?.image_url_small ?? '';
+    const { set, mode, condition, quantity, artworkId, artworkUrl } = addState;
     const entryId = makeEntryId(headerCard.id, set);
 
     if (mode === 'collection') {
@@ -128,7 +191,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
           id: entryId,
           cardId: headerCard.id,
           cardName: headerCard.name,
-          cardImageUrl: imageUrl,
+          cardImageUrl: artworkUrl,
+          artworkId,
           setName: set.set_name,
           setCode: set.set_code,
           rarity: set.set_rarity,
@@ -143,7 +207,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
           id: entryId,
           cardId: headerCard.id,
           cardName: headerCard.name,
-          cardImageUrl: imageUrl,
+          cardImageUrl: artworkUrl,
+          artworkId,
           setName: set.set_name,
           setCode: set.set_code,
           rarity: set.set_rarity,
@@ -155,6 +220,9 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     }
     setAddState(null);
   };
+
+  const colCount = totalArtworks > 1 ? 6 : 5;
+  const mainArtUrl = getArtworkUrl(selectedImageIdx, true);
 
   return (
     <div className="modal-backdrop" onClick={addState ? undefined : onClose}>
@@ -176,20 +244,21 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
               {/* ── Card header: image + meta ── */}
               <div className="card-detail__header">
                 <div className="card-detail__image-col">
-                  {selectedImage ? (
+                  {mainArtUrl ? (
                     <div className="card-detail__image">
-                      <img src={selectedImage.image_url} alt={headerCard.name} />
+                      <img src={mainArtUrl} alt={headerCard.name} />
                     </div>
                   ) : (
                     <div className="card-detail__image-placeholder">No image</div>
                   )}
 
-                  {images.length > 1 && (
+                  {totalArtworks > 1 && !addState && (
                     <div className="card-detail__artworks">
-                      {images.map((img, i) => (
+                      <span className="card-detail__artworks-label">Select artwork</span>
+                      {Array.from({ length: totalArtworks }, (_, i) => (
                         <img
-                          key={img.id}
-                          src={img.image_url_small}
+                          key={i}
+                          src={getArtworkUrl(i)}
                           alt={`Artwork ${i + 1}`}
                           className={`card-detail__art-thumb${i === selectedImageIdx ? ' card-detail__art-thumb--active' : ''}`}
                           onClick={() => setSelectedImageIdx(i)}
@@ -242,6 +311,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                       </span></>
                     )}
                   </div>
+
 
                   <div className="card-detail__add-fields">
                     <div className="card-detail__add-field">
@@ -304,6 +374,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                           <table className="card-detail__sets-table">
                             <thead>
                               <tr>
+                                {totalArtworks > 1 && <th className="card-detail__th-art">Art</th>}
                                 <th>Set</th>
                                 <th>Code</th>
                                 <th>Rarity</th>
@@ -314,16 +385,44 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                             <tbody>
                               {filteredSets.map((set) => {
                                 const entryId = makeEntryId(headerCard.id, set);
-                                const inCollection = state.collection.some((e) => e.id === entryId);
-                                const inWishlist = state.wishlist.some((e) => e.id === entryId);
+                                const selectedArtId = selectedImage?.id;
+                                const inCollection = state.collection.some(
+                                  (e) => e.id === entryId &&
+                                    (e.artworkId === undefined || e.artworkId === selectedArtId),
+                                );
+                                const inWishlist = state.wishlist.some(
+                                  (e) => e.id === entryId &&
+                                    (e.artworkId === undefined || e.artworkId === selectedArtId),
+                                );
                                 const priceUsd = parseFloat(set.set_price);
                                 const hasPrice = priceUsd > 0;
                                 const historyKey = `${set.set_code}|${set.set_rarity}`;
                                 const isExpanded = expandedSet === historyKey;
 
+                                const setPrefix = set.set_code.split('-')[0];
+                                const artIdx = setArtworkMap.get(setPrefix) ?? 0;
+                                const artImg = images[artIdx] ?? images[0];
+                                const ygpUrl = totalArtworks > 1
+                                  ? yugipediaImageUrl(galleryMap, setPrefix, set.set_rarity, artIdx)
+                                  : null;
+
                                 return (
-                                  <>
-                                    <tr key={`${set.set_code}-${set.set_rarity_code}`}>
+                                  <Fragment key={`${set.set_code}-${set.set_rarity_code}`}>
+                                    <tr>
+                                      {totalArtworks > 1 && (
+                                        <td className="card-detail__td-art">
+                                          <img
+                                            src={ygpUrl ?? artImg.image_url_small}
+                                            title={`Artwork ${artIdx + 1} of ${totalArtworks}`}
+                                            className="card-detail__art-col-thumb"
+                                            onClick={() => setSelectedImageIdx(artIdx)}
+                                            onError={ygpUrl ? (e) => {
+                                              (e.target as HTMLImageElement).src = artImg.image_url_small;
+                                              (e.target as HTMLImageElement).onerror = null;
+                                            } : undefined}
+                                          />
+                                        </td>
+                                      )}
                                       <td>{set.set_name}</td>
                                       <td style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                                         {set.set_code}
@@ -370,8 +469,8 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
 
                                     {/* Price history chart row */}
                                     {isExpanded && (
-                                      <tr key={`${historyKey}-chart`} className="card-detail__chart-row">
-                                        <td colSpan={5}>
+                                      <tr className="card-detail__chart-row">
+                                        <td colSpan={colCount}>
                                           {!isLoggedIn ? (
                                             <div className="card-detail__chart-guest">
                                               Sign in to see price history.
@@ -386,12 +485,12 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                         </td>
                                       </tr>
                                     )}
-                                  </>
+                                  </Fragment>
                                 );
                               })}
                               {filteredSets.length === 0 && (
                                 <tr>
-                                  <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
+                                  <td colSpan={colCount} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem' }}>
                                     No sets match your filter.
                                   </td>
                                 </tr>
