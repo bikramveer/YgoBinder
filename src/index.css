@@ -212,6 +212,142 @@ input:focus, select:focus, textarea:focus {
   overflow-y: auto;
 }
 
+/* ── Entry detail modal (Collection + Wishlist) ────────────────────────────── */
+.entry-modal {
+  padding: 1.5rem;
+  max-width: 440px;
+}
+
+.entry-modal__header {
+  display: flex;
+  gap: 1.1rem;
+  margin-bottom: 1.1rem;
+}
+
+.entry-modal__img {
+  width: 100px;
+  flex-shrink: 0;
+  object-fit: contain;
+  align-self: flex-start;
+}
+
+.entry-modal__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.entry-modal__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.entry-modal__set {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.entry-modal__code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.entry-modal__date,
+.entry-modal__meta-line {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.entry-modal__status {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 0.1rem;
+}
+
+.entry-modal__status--pending { color: var(--accent); }
+.entry-modal__status--ok      { color: var(--success); }
+
+.entry-modal__section {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.entry-modal__section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.entry-modal__copy-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.entry-modal__copy-row:last-child { border-bottom: none; }
+
+.entry-modal__copy-cond { color: var(--text-muted); }
+
+.entry-modal__qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entry-modal__qty-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-light);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.entry-modal__qty-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.entry-modal__qty-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.entry-modal__qty-val {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 2ch;
+  text-align: center;
+}
+
+.entry-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 /* ── Spinner ───────────────────────────────────────────────────────────────── */
 .spinner {
   width: 32px;

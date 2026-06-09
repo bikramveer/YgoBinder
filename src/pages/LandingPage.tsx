@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { AuthModal } from '../components/AuthModal/AuthModal';
+import { ThemeToggle } from '../components/ThemeToggle/ThemeToggle';
 import './LandingPage.css';
 
 const FEATURES = [
@@ -47,9 +48,12 @@ export function LandingPage() {
       {/* ── Header ── */}
       <header className="landing__header">
         <span className="landing__logo">YgoBindr</span>
-        <button className="btn btn-primary landing__signin-btn" onClick={() => setAuthOpen(true)}>
-          Sign in
-        </button>
+        <div className="landing__header-actions">
+          <ThemeToggle />
+          <button className="btn btn-primary landing__signin-btn" onClick={() => setAuthOpen(true)}>
+            Sign in
+          </button>
+        </div>
       </header>
 
       {/* ── Hero ── */}
