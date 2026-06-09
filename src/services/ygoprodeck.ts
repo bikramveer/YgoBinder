@@ -17,8 +17,10 @@ export async function searchCards(
   if (query.trim()) {
     params.set('fname', query);
   } else {
-    // No query — return newest cards as a useful default
-    params.set('sort', 'new');
+    // No query — return most-viewed cards as a useful default (sort=new returns pre-release
+    // OCG cards with no TCG sets yet, which can't be added to collections)
+    params.set('sort', 'views');
+    params.set('sortorder', 'desc');
   }
 
   if (cardType) {

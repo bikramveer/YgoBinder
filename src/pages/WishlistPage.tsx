@@ -1,8 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useCollection } from '../context/CollectionContext';
+import { useAuth } from '../context/AuthContext';
 import { CONDITION_LABELS, CONDITION_ORDER } from '../types';
 import type { WishlistEntry, Condition, ConditionCopy } from '../types';
 import { exportWishlist } from '../utils/exportCsv';
+import { pricesApi } from '../services/api';
+import type { PricePoint } from '../services/api';
+import { PriceChart } from '../components/CardDetailModal/PriceChart';
+import { CardDetailModal } from '../components/CardDetailModal/CardDetailModal';
 import './WishlistPage.css';
 
 type Sort =
@@ -23,6 +28,7 @@ type AcquireState = { entry: WishlistEntry; quantity: number; condition: Conditi
 
 export function WishlistPage() {
   const { state, dispatch, stillNeeded } = useCollection();
+  const { isLoggedIn, preferredCurrency } = useAuth();
 
   const [search,          setSearch]          = useState('');
   const [sort,            setSort]            = useState<Sort>('date_new');
@@ -30,6 +36,27 @@ export function WishlistPage() {
   const [filterRarity,    setFilterRarity]    = useState('');
   const [selectedEntry,   setSelectedEntry]   = useState<WishlistEntry | null>(null);
   const [acquiring,       setAcquiring]       = useState<AcquireState>(null);
+  const [viewingCardId,   setViewingCardId]   = useState<number | null>(null);
+  const [priceHistory,    setPriceHistory]    = useState<PricePoint[]>([]);
+  const [priceLoading,    setPriceLoading]    = useState(false);
+
+  useEffect(() => {
+    if (!selectedEntry || !isLoggedIn) {
+      setPriceHistory([]);
+      return;
+    }
+    let cancelled = false;
+    setPriceLoading(true);
+    pricesApi.getHistory(selectedEntry.cardId, selectedEntry.setCode, selectedEntry.rarity)
+      .then((h) => { if (!cancelled) { setPriceHistory(h); setPriceLoading(false); } })
+      .catch(() => { if (!cancelled) { setPriceHistory([]); setPriceLoading(false); } });
+    return () => { cancelled = true; };
+  }, [selectedEntry, isLoggedIn]);
+
+  const openSelectedEntry = useCallback((entry: WishlistEntry) => {
+    setSelectedEntry(entry);
+    setPriceHistory([]);
+  }, []);
 
   const rarities = useMemo(
     () => [...new Set(state.wishlist.map((e) => e.rarity))].sort(),
@@ -160,7 +187,7 @@ export function WishlistPage() {
               <div
                 key={entry.id}
                 className="wishlist-row"
-                onClick={() => setSelectedEntry(entry)}
+                onClick={() => openSelectedEntry(entry)}
               >
                 {entry.cardImageUrl && (
                   <img
@@ -200,6 +227,14 @@ export function WishlistPage() {
             );
           })}
         </div>
+      )}
+
+      {/* View all printings — opens CardDetailModal by card ID */}
+      {viewingCardId !== null && (
+        <CardDetailModal
+          cardId={viewingCardId}
+          onClose={() => setViewingCardId(null)}
+        />
       )}
 
       {/* Detail modal */}
@@ -252,7 +287,28 @@ export function WishlistPage() {
                     </div>
                   </div>
 
+                  <div className="entry-modal__section">
+                    <p className="entry-modal__section-label">Price History</p>
+                    {!isLoggedIn ? (
+                      <p className="entry-modal__note">Sign in to track price history.</p>
+                    ) : priceLoading ? (
+                      <PriceChart history={[]} currency={preferredCurrency} loading={true} />
+                    ) : priceHistory.length === 0 ? (
+                      <p className="entry-modal__note">
+                        Price tracking begins the day you add a card to your wishlist.
+                      </p>
+                    ) : (
+                      <PriceChart history={priceHistory} currency={preferredCurrency} loading={false} />
+                    )}
+                  </div>
+
                   <div className="entry-modal__footer">
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => { setSelectedEntry(null); setViewingCardId(selectedEntry.cardId); }}
+                    >
+                      View all printings
+                    </button>
                     <button className="btn btn-ghost" onClick={() => setSelectedEntry(null)}>Close</button>
                     <button
                       className="btn btn-success"

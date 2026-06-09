@@ -122,23 +122,25 @@ export function SearchPage() {
         </div>
       </div>
 
-      {!query && (
-        <div className="search-page__prompt">Start typing to search the card database…</div>
+      {!loading && !query && cards.length > 0 && (
+        <div className="search-page__label">Popular cards</div>
       )}
 
-      {query && (
-        <CardGrid
-          cards={cards}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-          loading={loading}
-          error={error}
-          hasMore={hasMore}
-          onLoadMore={loadMore}
-          onCardClick={(card) => setDetailCard(card)}
-          onQuickAdd={handleQuickAdd}
-        />
+      {!loading && !error && cards.length === 0 && query && (
+        <div className="search-page__prompt">No cards found.</div>
       )}
+
+      <CardGrid
+        cards={cards}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        loading={loading}
+        error={error}
+        hasMore={hasMore}
+        onLoadMore={loadMore}
+        onCardClick={(card) => setDetailCard(card)}
+        onQuickAdd={handleQuickAdd}
+      />
 
       {/* Card detail modal — handles add form internally */}
       {detailCard && (

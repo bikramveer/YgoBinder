@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useCardDetail } from '../../hooks/useCardDetail';
 import { useCollection } from '../../context/CollectionContext';
 import { useAuth } from '../../context/AuthContext';
@@ -6,10 +6,8 @@ import { getCardTypeColor, getCardTypeLabel } from '../../utils/cardTypeColors';
 import { CONDITION_ORDER, CONDITION_LABELS, formatPrice } from '../../types';
 import type { YGOCard, YGOCardSet, Condition } from '../../types';
 import { pricesApi } from '../../services/api';
-import type { PricePoint } from '../../services/api';
 import { getYugipediaData, yugipediaImageUrl } from '../../services/yugipediaArtwork';
 import type { GalleryEntry } from '../../services/yugipediaArtwork';
-import { PriceChart } from './PriceChart';
 import './CardDetailModal.css';
 
 interface Props {
@@ -34,7 +32,7 @@ function makeEntryId(cardId: number, set: YGOCardSet): string {
 export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const { card, loading, fetchCard } = useCardDetail();
   const { state, dispatch } = useCollection();
-  const { preferredCurrency, isLoggedIn } = useAuth();
+  const { preferredCurrency } = useAuth();
 
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [headerArtUrl, setHeaderArtUrl] = useState<string | null>(null);
@@ -46,18 +44,12 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   // Exchange rates — fetched once per modal open, used to convert prices in the table
   const [rates, setRates] = useState<Record<string, number>>({});
 
-  // Price history chart state
-  const [expandedSet, setExpandedSet] = useState<string | null>(null);
-  const [historyMap, setHistoryMap] = useState<Record<string, PricePoint[]>>({});
-  const [historyLoading, setHistoryLoading] = useState<Record<string, boolean>>({});
-
   useEffect(() => {
     if (cardId !== null) fetchCard(cardId);
     setSelectedImageIdx(0);
     setHeaderArtUrl(null);
     setSetFilter('');
     setAddState(null);
-    setExpandedSet(null);
     setSetArtworkMap(new Map());
     setGalleryMap(new Map());
   }, [cardId, fetchCard]);
@@ -91,30 +83,6 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
   }, [onClose, addState]);
-
-  const toggleHistory = useCallback(async (set: YGOCardSet, cardIdNum: number) => {
-    const key = `${set.set_code}|${set.set_rarity}`;
-
-    if (expandedSet === key) {
-      setExpandedSet(null);
-      return;
-    }
-
-    setExpandedSet(key);
-
-    if (!isLoggedIn) return;
-    if (historyMap[key] !== undefined) return;
-
-    setHistoryLoading((prev) => ({ ...prev, [key]: true }));
-    try {
-      const data = await pricesApi.getHistory(cardIdNum, set.set_code, set.set_rarity);
-      setHistoryMap((prev) => ({ ...prev, [key]: data }));
-    } catch {
-      setHistoryMap((prev) => ({ ...prev, [key]: [] }));
-    } finally {
-      setHistoryLoading((prev) => ({ ...prev, [key]: false }));
-    }
-  }, [expandedSet, historyMap, isLoggedIn]);
 
   const headerCard = card ?? initialCard ?? null;
   const fullSets = card?.card_sets ?? null;
@@ -401,8 +369,6 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                 const inWishlist = state.wishlist.some((e) => e.id === entryId);
                                 const priceUsd = parseFloat(set.set_price);
                                 const hasPrice = priceUsd > 0;
-                                const historyKey = `${set.set_code}|${set.set_rarity}`;
-                                const isExpanded = expandedSet === historyKey;
 
                                 const setPrefix = set.set_code.split('-')[0];
                                 const artIdx = setArtworkMap.get(setPrefix) ?? 0;
@@ -412,85 +378,53 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                                   : null;
 
                                 return (
-                                  <Fragment key={`${set.set_code}-${set.set_rarity_code}`}>
-                                    <tr>
-                                      {artworkIndices.length > 1 && (
-                                        <td className="card-detail__td-art">
-                                          <img
-                                            src={ygpUrl ?? artImg.image_url_small}
-                                            title={`Artwork ${artIdx + 1} of ${totalArtworks}`}
-                                            className="card-detail__art-col-thumb"
-                                            onClick={() => setHeaderArtUrl(ygpUrl ?? artImg?.image_url ?? artImg?.image_url_small ?? null)}
-                                            onError={ygpUrl ? (e) => {
-                                              (e.target as HTMLImageElement).src = artImg.image_url_small;
-                                              (e.target as HTMLImageElement).onerror = null;
-                                            } : undefined}
-                                          />
-                                        </td>
-                                      )}
-                                      <td>{set.set_name}</td>
-                                      <td style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                                        {set.set_code}
+                                  <tr key={`${set.set_code}-${set.set_rarity_code}`}>
+                                    {artworkIndices.length > 1 && (
+                                      <td className="card-detail__td-art">
+                                        <img
+                                          src={ygpUrl ?? artImg.image_url_small}
+                                          title={`Artwork ${artIdx + 1} of ${totalArtworks}`}
+                                          className="card-detail__art-col-thumb"
+                                          onClick={() => setHeaderArtUrl(ygpUrl ?? artImg?.image_url ?? artImg?.image_url_small ?? null)}
+                                          onError={ygpUrl ? (e) => {
+                                            (e.target as HTMLImageElement).src = artImg.image_url_small;
+                                            (e.target as HTMLImageElement).onerror = null;
+                                          } : undefined}
+                                        />
                                       </td>
-                                      <td>{set.set_rarity}</td>
-                                      <td>
-                                        <div className="card-detail__price-cell">
-                                          {hasPrice ? (
-                                            <>
-                                              <span className="card-detail__price">
-                                                {formatPrice(priceUsd, preferredCurrency, rates)}
-                                              </span>
-                                              <button
-                                                className={`card-detail__history-btn${isExpanded ? ' card-detail__history-btn--active' : ''}`}
-                                                onClick={() => void toggleHistory(set, headerCard.id)}
-                                                title="Price history"
-                                              >
-                                                ↗
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <span className="card-detail__price--none">—</span>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td>
-                                        <div className="card-detail__set-actions">
-                                          <button
-                                            className={`btn ${inCollection ? 'btn-ghost' : 'btn-primary'}`}
-                                            onClick={() => openAddForm(set, 'collection')}
-                                          >
-                                            {inCollection ? '✓ Owned' : '+ Collection'}
-                                          </button>
-                                          <button
-                                            className="btn btn-ghost"
-                                            style={inWishlist ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
-                                            onClick={() => openAddForm(set, 'wishlist')}
-                                          >
-                                            {inWishlist ? '✓ Wishlist' : '+ Wishlist'}
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-
-                                    {/* Price history chart row */}
-                                    {isExpanded && (
-                                      <tr className="card-detail__chart-row">
-                                        <td colSpan={colCount}>
-                                          {!isLoggedIn ? (
-                                            <div className="card-detail__chart-guest">
-                                              Sign in to see price history.
-                                            </div>
-                                          ) : (
-                                            <PriceChart
-                                              history={historyMap[historyKey] ?? []}
-                                              currency={preferredCurrency}
-                                              loading={historyLoading[historyKey] ?? false}
-                                            />
-                                          )}
-                                        </td>
-                                      </tr>
                                     )}
-                                  </Fragment>
+                                    <td>{set.set_name}</td>
+                                    <td style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                                      {set.set_code}
+                                    </td>
+                                    <td>{set.set_rarity}</td>
+                                    <td>
+                                      {hasPrice ? (
+                                        <span className="card-detail__price">
+                                          {formatPrice(priceUsd, preferredCurrency, rates)}
+                                        </span>
+                                      ) : (
+                                        <span className="card-detail__price--none">—</span>
+                                      )}
+                                    </td>
+                                    <td>
+                                      <div className="card-detail__set-actions">
+                                        <button
+                                          className={`btn ${inCollection ? 'btn-ghost' : 'btn-primary'}`}
+                                          onClick={() => openAddForm(set, 'collection')}
+                                        >
+                                          {inCollection ? '✓ Owned' : '+ Collection'}
+                                        </button>
+                                        <button
+                                          className="btn btn-ghost"
+                                          style={inWishlist ? { color: 'var(--success)', borderColor: 'var(--success)' } : {}}
+                                          onClick={() => openAddForm(set, 'wishlist')}
+                                        >
+                                          {inWishlist ? '✓ Wishlist' : '+ Wishlist'}
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
                                 );
                               })}
                               {filteredSets.length === 0 && (

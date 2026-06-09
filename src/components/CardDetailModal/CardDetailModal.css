@@ -242,42 +242,6 @@
   gap: 0.5rem;
 }
 
-.card-detail__price-cell {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.card-detail__history-btn {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  padding: 0.1rem 0.3rem;
-  border-radius: 0;
-  border: 1px solid var(--border);
-  background: none;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  line-height: 1;
-  letter-spacing: 0.04em;
-}
-.card-detail__history-btn:hover,
-.card-detail__history-btn--active {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-
-.card-detail__chart-row td {
-  padding: 0.5rem 0.75rem 0.75rem;
-  background: var(--surface-2);
-}
-
-.card-detail__chart-guest {
-  padding: 0.75rem;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  text-align: center;
-}
 
 /* Art column in set printings table */
 .card-detail__th-art {

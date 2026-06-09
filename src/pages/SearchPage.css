@@ -38,6 +38,16 @@
   font-size: 0.9rem;
 }
 
+.search-page__label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
 @media (min-width: 520px) {
   .search-page__bar { flex-direction: row; align-items: flex-start; }
 }
