@@ -1,8 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useCollection } from '../context/CollectionContext';
+import { useAuth } from '../context/AuthContext';
 import { CONDITION_ORDER, CONDITION_LABELS } from '../types';
 import type { CollectionEntry, Condition, ConditionCopy } from '../types';
 import { exportCollection } from '../utils/exportCsv';
+import { pricesApi } from '../services/api';
+import type { PricePoint } from '../services/api';
+import { PriceChart } from '../components/CardDetailModal/PriceChart';
+import { CardDetailModal } from '../components/CardDetailModal/CardDetailModal';
 import './CollectionPage.css';
 
 type Sort =
@@ -36,12 +41,34 @@ function bestCondition(entry: CollectionEntry): Condition {
 
 export function CollectionPage() {
   const { state, dispatch } = useCollection();
+  const { isLoggedIn, preferredCurrency } = useAuth();
 
   const [search,           setSearch]           = useState('');
   const [sort,             setSort]             = useState<Sort>('date_new');
   const [filterCondition,  setFilterCondition]  = useState<Condition | ''>('');
   const [filterRarity,     setFilterRarity]     = useState('');
   const [selectedEntry,    setSelectedEntry]    = useState<CollectionEntry | null>(null);
+  const [viewingCardId,    setViewingCardId]    = useState<number | null>(null);
+  const [priceHistory,     setPriceHistory]     = useState<PricePoint[]>([]);
+  const [priceLoading,     setPriceLoading]     = useState(false);
+
+  useEffect(() => {
+    if (!selectedEntry || !isLoggedIn) {
+      setPriceHistory([]);
+      return;
+    }
+    let cancelled = false;
+    setPriceLoading(true);
+    pricesApi.getHistory(selectedEntry.cardId, selectedEntry.setCode, selectedEntry.rarity)
+      .then((h) => { if (!cancelled) { setPriceHistory(h); setPriceLoading(false); } })
+      .catch(() => { if (!cancelled) { setPriceHistory([]); setPriceLoading(false); } });
+    return () => { cancelled = true; };
+  }, [selectedEntry, isLoggedIn]);
+
+  const openSelectedEntry = useCallback((entry: CollectionEntry) => {
+    setSelectedEntry(entry);
+    setPriceHistory([]);
+  }, []);
 
   const rarities = useMemo(
     () => [...new Set(state.collection.map((e) => e.rarity))].sort(),
@@ -174,7 +201,7 @@ export function CollectionPage() {
               <div
                 key={entry.id}
                 className="collection-row"
-                onClick={() => setSelectedEntry(entry)}
+                onClick={() => openSelectedEntry(entry)}
               >
                 {entry.cardImageUrl && (
                   <img
@@ -207,6 +234,14 @@ export function CollectionPage() {
             );
           })}
         </div>
+      )}
+
+      {/* View all printings — opens CardDetailModal by card ID */}
+      {viewingCardId !== null && (
+        <CardDetailModal
+          cardId={viewingCardId}
+          onClose={() => setViewingCardId(null)}
+        />
       )}
 
       {/* Detail modal */}
@@ -253,7 +288,28 @@ export function CollectionPage() {
               ))}
             </div>
 
+            <div className="entry-modal__section">
+              <p className="entry-modal__section-label">Price History</p>
+              {!isLoggedIn ? (
+                <p className="entry-modal__note">Sign in to track price history.</p>
+              ) : priceLoading ? (
+                <PriceChart history={[]} currency={preferredCurrency} loading={true} />
+              ) : priceHistory.length === 0 ? (
+                <p className="entry-modal__note">
+                  Price tracking begins the day you add a card to your collection.
+                </p>
+              ) : (
+                <PriceChart history={priceHistory} currency={preferredCurrency} loading={false} />
+              )}
+            </div>
+
             <div className="entry-modal__footer">
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setSelectedEntry(null); setViewingCardId(selectedEntry.cardId); }}
+              >
+                View all printings
+              </button>
               <button className="btn btn-ghost" onClick={() => setSelectedEntry(null)}>Close</button>
               <button
                 className="btn btn-danger"

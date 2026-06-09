@@ -215,7 +215,7 @@ input:focus, select:focus, textarea:focus {
 /* ── Entry detail modal (Collection + Wishlist) ────────────────────────────── */
 .entry-modal {
   padding: 1.5rem;
-  max-width: 440px;
+  max-width: 520px;
 }
 
 .entry-modal__header {
@@ -339,6 +339,13 @@ input:focus, select:focus, textarea:focus {
   color: var(--accent);
   min-width: 2ch;
   text-align: center;
+}
+
+.entry-modal__note {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+  margin-top: 0.35rem;
 }
 
 .entry-modal__footer {

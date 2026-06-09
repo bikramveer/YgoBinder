@@ -157,6 +157,7 @@ export function CardPickerModal({ emptySlotCount, onConfirm, onCancel }: Props) 
         const result = await searchCards(allQuery, 0, apiType);
         if (!controller.signal.aborted) {
           const data = result.data
+            .filter((c) => (c.card_sets?.length ?? 0) > 0)
             .filter((c) => cardMatchesType(c, typeFilter))
             .slice(0, 24);
           setAllResults(data);
@@ -448,7 +449,7 @@ export function CardPickerModal({ emptySlotCount, onConfirm, onCancel }: Props) 
           <>
             {!allLoading && allResults.length > 0 && (
               <div className="card-picker__all-label">
-                {allQuery.trim() ? 'Search results' : 'Recently released'}
+                {allQuery.trim() ? 'Search results' : 'Popular cards'}
               </div>
             )}
           <div className="card-picker__grid">

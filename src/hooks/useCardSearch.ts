@@ -25,11 +25,6 @@ export function useCardSearch(
 
   const fetchPage = useCallback(
     async (currentOffset: number, append: boolean) => {
-      if (!query.trim()) {
-        setCards([]);
-        setHasMore(false);
-        return;
-      }
       abortRef.current?.abort();
       abortRef.current = new AbortController();
 
@@ -38,7 +33,7 @@ export function useCardSearch(
 
       try {
         const res = await searchCards(query.trim(), currentOffset, cardType || undefined);
-        let results = res.data ?? [];
+        let results = (res.data ?? []).filter((c) => (c.card_sets?.length ?? 0) > 0);
 
         // Client-side rarity filter
         if (rarity) {
@@ -51,7 +46,7 @@ export function useCardSearch(
 
         setCards((prev) => (append ? [...prev, ...results] : results));
         const remaining = res.meta?.rows_remaining ?? 0;
-        setHasMore(remaining > 0 && results.length > 0);
+        setHasMore(remaining > 0 && (res.data?.length ?? 0) > 0);
       } catch (err) {
         if (err instanceof Error && err.name !== 'AbortError') {
           setError('Failed to fetch cards. Please try again.');
@@ -63,12 +58,13 @@ export function useCardSearch(
     [query, cardType, rarity],
   );
 
-  // Reset and search when query/filters change (debounced)
+  // Reset and search when query/filters change — immediate for empty (default view), debounced for typing
   useEffect(() => {
+    const delay = query.trim() ? 350 : 0;
     const timer = setTimeout(() => {
       setOffset(0);
       fetchPage(0, false);
-    }, 350);
+    }, delay);
     return () => clearTimeout(timer);
   }, [query, cardType, rarity, fetchPage]);
 
