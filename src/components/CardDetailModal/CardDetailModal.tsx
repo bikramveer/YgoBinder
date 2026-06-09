@@ -128,7 +128,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const ii = initialCard?.card_images ?? [];
   const images = ii.length > ci.length ? ii : (ci.length > 0 ? ci : ii);
 
-  const selectedImage = images[selectedImageIdx] ?? images[0];
+  // const selectedImage = images[selectedImageIdx] ?? images[0];
 
   // Total artwork count: max of what YGOPRODeck provides and what Yugipedia artMap reveals.
   const totalArtworks = useMemo(() => {
