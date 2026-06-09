@@ -77,6 +77,7 @@ export interface CollectionEntry {
   cardId: number;
   cardName: string;
   cardImageUrl: string;
+  artworkId?: number; // YGOCardImage.id — which artwork this copy is
   setName: string;
   setCode: string;
   rarity: string;
@@ -90,6 +91,7 @@ export interface WishlistEntry {
   cardId: number;
   cardName: string;
   cardImageUrl: string;
+  artworkId?: number; // YGOCardImage.id — which artwork this copy is
   setName: string;
   setCode: string;
   rarity: string;

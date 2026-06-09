@@ -6,6 +6,13 @@
   display: flex;
   gap: 1rem;
   margin-bottom: 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 0.5rem;
 }
 
 .card-detail__image-col {
@@ -40,6 +47,17 @@
   gap: 4px;
   flex-wrap: wrap;
   max-width: 120px;
+}
+
+.card-detail__artworks-label {
+  flex: 0 0 100%;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
 }
 .card-detail__art-thumb {
   width: 34px;
@@ -95,6 +113,7 @@
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
+  z-index: 2;
   width: 28px;
   height: 28px;
   border-radius: 0;
@@ -159,6 +178,7 @@
   flex-wrap: nowrap;
 }
 .card-detail__set-actions .btn { font-size: 0.72rem; padding: 0.25rem 0.5rem; white-space: nowrap; }
+.card-detail__set-actions .btn:first-child { min-width: 6.5rem; justify-content: center; }
 
 .card-detail__in-list {
   font-size: 0.72rem;
@@ -257,6 +277,49 @@
   font-size: 0.82rem;
   color: var(--text-muted);
   text-align: center;
+}
+
+/* Art column in set printings table */
+.card-detail__th-art {
+  width: 44px;
+  text-align: center;
+}
+
+.card-detail__td-art {
+  padding: 2px 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.card-detail__art-col-thumb {
+  width: 28px;
+  display: block;
+  margin: auto;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.1s;
+}
+.card-detail__art-col-thumb:hover { opacity: 1; }
+
+/* Artwork confirmation row inside the add form */
+.card-detail__add-artwork {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface-2);
+  border-left: 2px solid var(--accent);
+}
+
+.card-detail__add-art-thumb {
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.card-detail__add-art-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
 @media (min-width: 520px) {
