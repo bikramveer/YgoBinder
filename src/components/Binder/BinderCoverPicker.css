@@ -47,10 +47,11 @@
 .cover-picker__item:hover {
   border-color: var(--accent);
   transform: scale(1.04);
+  box-shadow: var(--glow-sm);
 }
 .cover-picker__item--active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent);
+  box-shadow: var(--glow-sm);
 }
 
 .cover-picker__img {

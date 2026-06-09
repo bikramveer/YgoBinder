@@ -13,12 +13,13 @@
   width: 100%;
   padding: 0.6rem 0.75rem;
   font-size: 0.95rem;
-  border-radius: var(--radius);
+  border-radius: 0;
   background: var(--surface);
-  border: 1px solid var(--border-light);
+  border: none;
+  border-bottom: 2px solid var(--border-light);
   color: var(--text);
 }
-.search-page__input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.search-page__input:focus { outline: none; border-bottom-color: var(--accent); }
 
 .search-page__filters {
   display: flex;

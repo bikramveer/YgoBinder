@@ -1,28 +1,80 @@
-/* ── Design tokens ─────────────────────────────────────────────────────────── */
+/* ── Design tokens — KaibaCorp Terminal (light) ──────────────────────────── */
 :root {
-  --bg:          #0f0f1a;
-  --surface:     #1a1a2e;
-  --surface-2:   #252540;
-  --surface-3:   #2f2f55;
-  --accent:      #c9a84c;
-  --accent-dim:  #a07c30;
-  --text:        #e8e8e8;
-  --text-muted:  #8888aa;
-  --text-dim:    #5a5a7a;
-  --danger:      #e05252;
-  --success:     #4cbc8a;
-  --border:      #2e2e4e;
-  --border-light:#3a3a60;
+  --bg:               #eef2fa;
+  --surface:          #ffffff;
+  --surface-2:        #e8edf8;
+  --surface-3:        #d4ddf2;
+  --surface-4:        #c0cce8;
+  --surface-glass:    rgba(255, 255, 255, 0.92);
 
-  --radius-sm:   4px;
-  --radius:      8px;
-  --radius-lg:   12px;
+  --accent:           #1a3db5;
+  --accent-dim:       #1432a0;
+  --accent-glow:      rgba(26, 61, 181, 0.3);
+  --on-accent:        #ffffff;
 
-  --shadow:      0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-lg:   0 8px 32px rgba(0, 0, 0, 0.7);
+  --secondary:        #c0392b;
+  --secondary-bright: #e84040;
 
-  --nav-height:  56px;
-  --font:        'Segoe UI', system-ui, -apple-system, sans-serif;
+  --text:             #0c1a42;
+  --text-muted:       #364f88;
+  --text-dim:         #6878a8;
+
+  --danger:           #c0392b;
+  --success:          #1e8a54;
+
+  --border:           #b4c4e0;
+  --border-light:     #d0dcf0;
+
+  --radius-sm:        0;
+  --radius:           0;
+  --radius-lg:        0;
+
+  --shadow:           0 2px 8px rgba(12, 26, 66, 0.1);
+  --shadow-lg:        0 8px 32px rgba(12, 26, 66, 0.16);
+  --glow:             0 0 20px rgba(26, 61, 181, 0.3);
+  --glow-sm:          0 0 10px rgba(26, 61, 181, 0.22);
+
+  --modal-bg:         rgba(12, 26, 66, 0.35);
+
+  --nav-height:       56px;
+  --font:             'Libre Franklin', system-ui, -apple-system, sans-serif;
+  --font-display:     'Orbitron', sans-serif;
+  --font-mono:        'JetBrains Mono', monospace;
+}
+
+/* ── Dark mode override — Shadow Hologram ─────────────────────────────────── */
+[data-theme="dark"] {
+  --bg:               #060c1c;
+  --surface:          #0b1830;
+  --surface-2:        #0e2040;
+  --surface-3:        #142850;
+  --surface-4:        #1c3460;
+  --surface-glass:    rgba(11, 24, 48, 0.92);
+
+  --accent:           #3a8fff;
+  --accent-dim:       #2a6fd0;
+  --accent-glow:      rgba(58, 143, 255, 0.45);
+  --on-accent:        #ffffff;
+
+  --secondary:        #e84560;
+  --secondary-bright: #ff6b80;
+
+  --text:             #e0eaff;
+  --text-muted:       #7898c8;
+  --text-dim:         #4060a0;
+
+  --danger:           #ff6b6b;
+  --success:          #4ecb8a;
+
+  --border:           #1c3460;
+  --border-light:     #2a4878;
+
+  --shadow:           0 2px 8px rgba(0, 0, 0, 0.7);
+  --shadow-lg:        0 8px 32px rgba(0, 0, 0, 0.9);
+  --glow:             0 0 20px rgba(58, 143, 255, 0.45);
+  --glow-sm:          0 0 10px rgba(58, 143, 255, 0.35);
+
+  --modal-bg:         rgba(0, 8, 24, 0.75);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -43,6 +95,11 @@ body {
   color: var(--text);
   min-height: 100vh;
   line-height: 1.5;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
 }
 
 img {
@@ -66,20 +123,20 @@ input, select, textarea {
   font-family: inherit;
   background: var(--surface-2);
   color: var(--text);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
+  border: none;
+  border-bottom: 2px solid var(--border-light);
   padding: 0.4rem 0.6rem;
 }
 
 input:focus, select:focus, textarea:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: none;
+  border-bottom-color: var(--accent);
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--surface-4); border-radius: 0; }
 
 /* ── Utility classes ───────────────────────────────────────────────────────── */
 .page {
@@ -94,32 +151,49 @@ input:focus, select:focus, textarea:focus {
   align-items: center;
   gap: 0.3rem;
   padding: 0.4rem 0.8rem;
-  border-radius: var(--radius-sm);
+  border-radius: 0;
   font-size: 0.85rem;
-  font-weight: 500;
-  transition: opacity 0.15s, background 0.15s;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  transition: box-shadow 0.15s, background 0.15s, opacity 0.15s;
 }
-.btn:hover { opacity: 0.85; }
-.btn-primary { background: var(--accent); color: #1a1a0e; }
-.btn-ghost { background: var(--surface-2); color: var(--text); border: 1px solid var(--border-light); }
-.btn-danger { background: var(--danger); color: #fff; }
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn-primary:hover {
+  box-shadow: var(--glow);
+}
+.btn-ghost {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-light);
+}
+.btn-ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-danger { background: var(--secondary); color: #fff; }
+.btn-danger:hover { box-shadow: 0 0 14px rgba(150, 7, 17, 0.5); }
 .btn-success { background: var(--success); color: #fff; }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .badge {
   display: inline-block;
   padding: 0.15rem 0.45rem;
-  border-radius: 99px;
+  border-radius: 0;
   font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* ── Modal backdrop ────────────────────────────────────────────────────────── */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--modal-bg);
+  backdrop-filter: blur(10px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -129,13 +203,149 @@ input:focus, select:focus, textarea:focus {
 
 .modal {
   background: var(--surface);
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  box-shadow: var(--shadow-lg), var(--glow-sm);
   width: 100%;
   max-width: 640px;
   max-height: 90vh;
   overflow-y: auto;
+}
+
+/* ── Entry detail modal (Collection + Wishlist) ────────────────────────────── */
+.entry-modal {
+  padding: 1.5rem;
+  max-width: 440px;
+}
+
+.entry-modal__header {
+  display: flex;
+  gap: 1.1rem;
+  margin-bottom: 1.1rem;
+}
+
+.entry-modal__img {
+  width: 100px;
+  flex-shrink: 0;
+  object-fit: contain;
+  align-self: flex-start;
+}
+
+.entry-modal__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+}
+
+.entry-modal__name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.entry-modal__set {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.entry-modal__code {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.entry-modal__date,
+.entry-modal__meta-line {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.entry-modal__status {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 0.1rem;
+}
+
+.entry-modal__status--pending { color: var(--accent); }
+.entry-modal__status--ok      { color: var(--success); }
+
+.entry-modal__section {
+  border-top: 1px solid var(--border);
+  padding-top: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.entry-modal__section-label {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.entry-modal__copy-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.entry-modal__copy-row:last-child { border-bottom: none; }
+
+.entry-modal__copy-cond { color: var(--text-muted); }
+
+.entry-modal__qty-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.entry-modal__qty-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-light);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.12s, color 0.12s;
+  flex-shrink: 0;
+}
+
+.entry-modal__qty-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.entry-modal__qty-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.entry-modal__qty-val {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 2ch;
+  text-align: center;
+}
+
+.entry-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* ── Spinner ───────────────────────────────────────────────────────────────── */

@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { AuthModal } from '../AuthModal/AuthModal';
 import { CurrencySelector } from '../CurrencySelector/CurrencySelector';
+import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Navbar.css';
 
 const NAV_ITEMS = [
@@ -37,7 +38,7 @@ export function Navbar() {
           <span />
         </button>
 
-        <NavLink to="/dashboard" className="navbar__logo">YgoBinder</NavLink>
+        <NavLink to="/dashboard" className="navbar__logo">YgoBindr</NavLink>
 
         <div className="navbar__links">
           {NAV_ITEMS.map((item) => (
@@ -49,6 +50,7 @@ export function Navbar() {
 
         {/* Auth area — right side of desktop nav */}
         <div className="navbar__auth">
+          <ThemeToggle />
           <CurrencySelector />
           {!isLoading && (
             <>
@@ -88,6 +90,7 @@ export function Navbar() {
 
         {/* Auth in drawer */}
         <div className="navbar__drawer-auth">
+          <ThemeToggle />
           <div className="navbar__drawer-currency">
             <span className="navbar__drawer-currency-label">Currency</span>
             <CurrencySelector />

@@ -20,7 +20,6 @@ const SORT_OPTIONS: { value: Sort; label: string }[] = [
 ];
 
 type AcquireState = { entry: WishlistEntry; quantity: number; condition: Condition } | null;
-type RemoveDialog = { entry: WishlistEntry; amount: number } | null;
 
 export function WishlistPage() {
   const { state, dispatch, stillNeeded } = useCollection();
@@ -29,8 +28,8 @@ export function WishlistPage() {
   const [sort,            setSort]            = useState<Sort>('date_new');
   const [filterCondition, setFilterCondition] = useState<Condition | ''>('');
   const [filterRarity,    setFilterRarity]    = useState('');
+  const [selectedEntry,   setSelectedEntry]   = useState<WishlistEntry | null>(null);
   const [acquiring,       setAcquiring]       = useState<AcquireState>(null);
-  const [removing,        setRemoving]        = useState<RemoveDialog>(null);
 
   const rarities = useMemo(
     () => [...new Set(state.wishlist.map((e) => e.rarity))].sort(),
@@ -49,13 +48,8 @@ export function WishlistPage() {
         e.setName.toLowerCase().includes(q) ||
         e.setCode.toLowerCase().includes(q),
     );
-
-    if (filterCondition) {
-      list = list.filter((e) => e.minCondition === filterCondition);
-    }
-    if (filterRarity) {
-      list = list.filter((e) => e.rarity === filterRarity);
-    }
+    if (filterCondition) list = list.filter((e) => e.minCondition === filterCondition);
+    if (filterRarity)    list = list.filter((e) => e.rarity === filterRarity);
 
     return [...list].sort((a, b) => {
       switch (sort) {
@@ -70,32 +64,36 @@ export function WishlistPage() {
     });
   }, [state.wishlist, search, sort, filterCondition, filterRarity, stillNeeded]);
 
-  const handleRemoveClick = (entry: WishlistEntry) => {
-    if (entry.desiredQuantity === 1) {
-      dispatch({ type: 'REMOVE_FROM_WISHLIST', id: entry.id });
-    } else {
-      setRemoving({ entry, amount: 1 });
-    }
+  const handleRemove = (e: React.MouseEvent, entry: WishlistEntry) => {
+    e.stopPropagation();
+    dispatch({ type: 'REMOVE_FROM_WISHLIST', id: entry.id });
+    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
   };
 
-  const confirmRemove = () => {
-    if (!removing) return;
-    dispatch({ type: 'REDUCE_WISHLIST_QUANTITY', id: removing.entry.id, amount: removing.amount });
-    setRemoving(null);
+  const handleAcquireClick = (e: React.MouseEvent, entry: WishlistEntry) => {
+    e.stopPropagation();
+    const needed = stillNeeded(entry);
+    setAcquiring({ entry, quantity: Math.max(1, needed), condition: entry.minCondition });
   };
 
   const confirmAcquire = () => {
     if (!acquiring) return;
     const copies: ConditionCopy[] = [{ condition: acquiring.condition, quantity: acquiring.quantity }];
     dispatch({ type: 'ACQUIRE', wishlistId: acquiring.entry.id, acquiredCopies: copies });
+    if (selectedEntry?.id === acquiring.entry.id) setSelectedEntry(null);
     setAcquiring(null);
+  };
+
+  const handleModalQtyChange = (delta: number) => {
+    if (!selectedEntry) return;
+    const newQty = Math.max(1, selectedEntry.desiredQuantity + delta);
+    dispatch({ type: 'UPDATE_WISHLIST', id: selectedEntry.id, patch: { desiredQuantity: newQty } });
+    setSelectedEntry({ ...selectedEntry, desiredQuantity: newQty });
   };
 
   return (
     <main className="page">
-      <h1 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent)' }}>
-        Wishlist
-      </h1>
+      <h1 className="page-title">Wishlist</h1>
 
       {/* Toolbar */}
       <div className="wishlist-toolbar">
@@ -112,7 +110,6 @@ export function WishlistPage() {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-
           <select
             value={filterCondition}
             onChange={(e) => setFilterCondition(e.target.value as Condition | '')}
@@ -122,15 +119,9 @@ export function WishlistPage() {
               <option key={c} value={c}>Min {CONDITION_LABELS[c]} ({c})</option>
             ))}
           </select>
-
-          <select
-            value={filterRarity}
-            onChange={(e) => setFilterRarity(e.target.value)}
-          >
+          <select value={filterRarity} onChange={(e) => setFilterRarity(e.target.value)}>
             <option value="">All rarities</option>
-            {rarities.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
+            {rarities.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
         <span className="wishlist-toolbar__count">
@@ -146,7 +137,6 @@ export function WishlistPage() {
         )}
       </div>
 
-      {/* Empty states */}
       {state.wishlist.length === 0 && (
         <div className="empty-state">
           <strong>Nothing on your wishlist yet</strong>
@@ -167,7 +157,11 @@ export function WishlistPage() {
           {entries.map((entry) => {
             const needed = stillNeeded(entry);
             return (
-              <div key={entry.id} className="wishlist-row">
+              <div
+                key={entry.id}
+                className="wishlist-row"
+                onClick={() => setSelectedEntry(entry)}
+              >
                 {entry.cardImageUrl && (
                   <img
                     className="wishlist-row__thumb"
@@ -175,42 +169,29 @@ export function WishlistPage() {
                     alt={entry.cardName}
                   />
                 )}
-
                 <div className="wishlist-row__info">
                   <span className="wishlist-row__name">{entry.cardName}</span>
                   <span className="wishlist-row__set">
-                    {entry.setName}
-                    {' · '}
-                    <span style={{ fontFamily: 'monospace' }}>{entry.setCode}</span>
+                    {entry.setName} · <span className="wishlist-row__code">{entry.setCode}</span>
                   </span>
                   <span className="wishlist-row__cond">
                     {entry.rarity} · Min {CONDITION_LABELS[entry.minCondition]} ({entry.minCondition})
                   </span>
                 </div>
-
                 <div className="wishlist-row__meta">
                   <span className={`wishlist-row__needed ${needed > 0 ? 'wishlist-row__needed--pending' : 'wishlist-row__needed--ok'}`}>
                     {needed > 0 ? `${needed} needed` : 'Have enough'}
                   </span>
                   <span className="wishlist-row__wanted">/ {entry.desiredQuantity} wanted</span>
-
                   <button
-                    className="btn btn-success"
-                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
-                    onClick={() =>
-                      setAcquiring({
-                        entry,
-                        quantity: Math.max(1, needed),
-                        condition: entry.minCondition,
-                      })
-                    }
+                    className="btn btn-success wishlist-row__btn"
+                    onClick={(e) => handleAcquireClick(e, entry)}
                   >
                     Acquired
                   </button>
                   <button
-                    className="btn btn-danger"
-                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
-                    onClick={() => handleRemoveClick(entry)}
+                    className="btn btn-danger wishlist-row__btn"
+                    onClick={(e) => handleRemove(e, entry)}
                   >
                     Remove
                   </button>
@@ -218,6 +199,88 @@ export function WishlistPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {selectedEntry && (
+        <div className="modal-backdrop" onClick={() => setSelectedEntry(null)}>
+          <div className="modal entry-modal" onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const needed = stillNeeded(selectedEntry);
+              return (
+                <>
+                  <div className="entry-modal__header">
+                    {selectedEntry.cardImageUrl && (
+                      <img
+                        className="entry-modal__img"
+                        src={selectedEntry.cardImageUrl}
+                        alt={selectedEntry.cardName}
+                      />
+                    )}
+                    <div className="entry-modal__info">
+                      <h2 className="entry-modal__name">{selectedEntry.cardName}</h2>
+                      <p className="entry-modal__set">{selectedEntry.setName}</p>
+                      <p className="entry-modal__code">
+                        {selectedEntry.setCode} · {selectedEntry.rarity}
+                      </p>
+                      <p className="entry-modal__meta-line">
+                        Min condition: {CONDITION_LABELS[selectedEntry.minCondition]} ({selectedEntry.minCondition})
+                      </p>
+                      <p className={`entry-modal__status ${needed > 0 ? 'entry-modal__status--pending' : 'entry-modal__status--ok'}`}>
+                        {needed > 0 ? `${needed} still needed` : 'Have enough ✓'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="entry-modal__section">
+                    <p className="entry-modal__section-label">Desired Quantity</p>
+                    <div className="entry-modal__copy-row">
+                      <span className="entry-modal__copy-cond">Copies wanted</span>
+                      <div className="entry-modal__qty-controls">
+                        <button
+                          className="entry-modal__qty-btn"
+                          onClick={() => handleModalQtyChange(-1)}
+                          disabled={selectedEntry.desiredQuantity <= 1}
+                        >−</button>
+                        <span className="entry-modal__qty-val">{selectedEntry.desiredQuantity}</span>
+                        <button
+                          className="entry-modal__qty-btn"
+                          onClick={() => handleModalQtyChange(1)}
+                        >+</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="entry-modal__footer">
+                    <button className="btn btn-ghost" onClick={() => setSelectedEntry(null)}>Close</button>
+                    <button
+                      className="btn btn-success"
+                      onClick={() => {
+                        setAcquiring({
+                          entry: selectedEntry,
+                          quantity: Math.max(1, needed),
+                          condition: selectedEntry.minCondition,
+                        });
+                        setSelectedEntry(null);
+                      }}
+                    >
+                      Mark Acquired
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={() => {
+                        dispatch({ type: 'REMOVE_FROM_WISHLIST', id: selectedEntry.id });
+                        setSelectedEntry(null);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
         </div>
       )}
 
@@ -249,9 +312,7 @@ export function WishlistPage() {
               </label>
               <select
                 value={acquiring.condition}
-                onChange={(e) =>
-                  setAcquiring((s) => s && { ...s, condition: e.target.value as Condition })
-                }
+                onChange={(e) => setAcquiring((s) => s && { ...s, condition: e.target.value as Condition })}
               >
                 {CONDITION_ORDER.map((c) => (
                   <option key={c} value={c}>{CONDITION_LABELS[c]} ({c})</option>
@@ -261,41 +322,6 @@ export function WishlistPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button className="btn btn-ghost" onClick={() => setAcquiring(null)}>Cancel</button>
               <button className="btn btn-success" onClick={confirmAcquire}>Confirm</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Remove dialog */}
-      {removing && (
-        <div className="modal-backdrop" onClick={() => setRemoving(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Remove from Wishlist</h2>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              {removing.entry.cardName} — {removing.entry.setCode}
-              <br />
-              You want {removing.entry.desiredQuantity} copies.
-            </p>
-            <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
-                How many copies to remove from this list?
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={removing.entry.desiredQuantity}
-                value={removing.amount}
-                onChange={(e) =>
-                  setRemoving((s) =>
-                    s && { ...s, amount: Math.min(s.entry.desiredQuantity, Math.max(1, parseInt(e.target.value, 10) || 1)) }
-                  )
-                }
-                style={{ width: '80px' }}
-              />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button className="btn btn-ghost" onClick={() => setRemoving(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={confirmRemove}>Remove</button>
             </div>
           </div>
         </div>

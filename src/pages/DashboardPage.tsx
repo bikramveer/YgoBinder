@@ -1,10 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCollection } from '../context/CollectionContext';
+import { CONDITION_LABELS } from '../types';
+import type { CollectionEntry } from '../types';
 import './DashboardPage.css';
 
 export function DashboardPage() {
   const { state, stillNeeded } = useCollection();
+  const [selectedRecent, setSelectedRecent] = useState<CollectionEntry | null>(null);
 
   const totalUnique = state.collection.length;
 
@@ -13,7 +16,6 @@ export function DashboardPage() {
     [state.collection],
   );
 
-  // Per-binder slot stats
   const binderStats = useMemo(
     () =>
       state.binders.map((binder) => {
@@ -39,7 +41,6 @@ export function DashboardPage() {
     [state.binders],
   );
 
-  // Wishlist overall progress
   const wishlistProgress = useMemo(() => {
     if (state.wishlist.length === 0) return null;
     let desired = 0;
@@ -52,7 +53,6 @@ export function DashboardPage() {
     return { desired, acquired, pct };
   }, [state.wishlist, stillNeeded]);
 
-  // Top 3 cards still most needed
   const topNeeded = useMemo(
     () =>
       [...state.wishlist]
@@ -63,7 +63,6 @@ export function DashboardPage() {
     [state.wishlist, stillNeeded],
   );
 
-  // 8 most recently added collection cards
   const recent = useMemo(
     () =>
       [...state.collection]
@@ -76,7 +75,7 @@ export function DashboardPage() {
 
   return (
     <main className="page dashboard">
-      <h1 className="dashboard__title">YgoBinder</h1>
+      <h1 className="dashboard__title">YgoBindr</h1>
 
       {/* ── Stats ── */}
       <div className="dashboard__stats">
@@ -159,7 +158,7 @@ export function DashboardPage() {
               <p className="dashboard__sub-label">Most needed</p>
               <div className="dashboard__needed-list">
                 {topNeeded.map(({ entry, needed }) => (
-                  <div key={entry.id} className="dashboard__needed-row">
+                  <Link key={entry.id} to="/wishlist" className="dashboard__needed-row">
                     {entry.cardImageUrl && (
                       <img
                         className="dashboard__needed-thumb"
@@ -174,7 +173,8 @@ export function DashboardPage() {
                       </span>
                     </div>
                     <span className="dashboard__needed-count">{needed} needed</span>
-                  </div>
+                    <span className="dashboard__needed-arrow">›</span>
+                  </Link>
                 ))}
               </div>
             </>
@@ -190,17 +190,18 @@ export function DashboardPage() {
           <h2 className="dashboard__section-title">Recently Added</h2>
           <div className="dashboard__recent-grid">
             {recent.map((entry) => (
-              <div
+              <button
                 key={entry.id}
                 className="dashboard__recent-card"
                 title={`${entry.cardName} (${entry.setCode})`}
+                onClick={() => setSelectedRecent(entry)}
               >
                 {entry.cardImageUrl ? (
                   <img src={entry.cardImageUrl} alt={entry.cardName} />
                 ) : (
                   <div className="dashboard__recent-card__empty">?</div>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         </section>
@@ -208,8 +209,52 @@ export function DashboardPage() {
 
       {isEmpty && (
         <div className="empty-state">
-          <strong>Welcome to YgoBinder!</strong>
+          <strong>Welcome to YgoBindr!</strong>
           <p>Head to Search to find your first card.</p>
+        </div>
+      )}
+
+      {/* ── Recent card info modal ── */}
+      {selectedRecent && (
+        <div className="modal-backdrop" onClick={() => setSelectedRecent(null)}>
+          <div className="modal dashboard__card-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="dashboard__card-modal__header">
+              {selectedRecent.cardImageUrl && (
+                <img
+                  className="dashboard__card-modal__img"
+                  src={selectedRecent.cardImageUrl}
+                  alt={selectedRecent.cardName}
+                />
+              )}
+              <div className="dashboard__card-modal__info">
+                <h2 className="dashboard__card-modal__name">{selectedRecent.cardName}</h2>
+                <p className="dashboard__card-modal__set">{selectedRecent.setName}</p>
+                <p className="dashboard__card-modal__code">
+                  {selectedRecent.setCode} · {selectedRecent.rarity}
+                </p>
+                <p className="dashboard__card-modal__date">
+                  Added {new Date(selectedRecent.dateAdded).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            <div className="dashboard__card-modal__copies">
+              <p className="dashboard__card-modal__copies-label">Copies Owned</p>
+              {selectedRecent.copies.map((c) => (
+                <div key={c.condition} className="dashboard__card-modal__copy-row">
+                  <span>{CONDITION_LABELS[c.condition]} ({c.condition})</span>
+                  <span className="dashboard__card-modal__copy-qty">{c.quantity}×</span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              className="btn btn-ghost dashboard__card-modal__close"
+              onClick={() => setSelectedRecent(null)}
+            >
+              Close
+            </button>
+          </div>
         </div>
       )}
     </main>

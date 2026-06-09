@@ -5,8 +5,8 @@
   width: 100%;
   margin: 0 auto;
   padding: 12px;
-  background: #111122;
-  border-radius: 8px;
+  background: var(--surface);
+  border-radius: 0;
   border: 2px solid var(--border);
 }
 

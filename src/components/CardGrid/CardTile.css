@@ -11,6 +11,7 @@
 .card-tile:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
+  box-shadow: var(--glow);
 }
 .card-tile:hover .card-tile__quick-add {
   opacity: 1;
@@ -43,9 +44,9 @@
   right: 6px;
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--accent);
-  color: #1a1a0e;
+  color: var(--on-accent);
   font-size: 1.2rem;
   font-weight: 700;
   line-height: 1;
@@ -73,13 +74,15 @@
   z-index: 2;
 }
 .card-tile__badge {
+  font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 700;
   padding: 0.1rem 0.35rem;
-  border-radius: 3px;
-  letter-spacing: 0.04em;
+  border-radius: 0;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
-.card-tile__badge--collection { background: var(--accent); color: #1a1a0e; }
+.card-tile__badge--collection { background: var(--accent); color: var(--on-accent); }
 .card-tile__badge--wishlist { background: var(--success); color: #fff; }
 
 .card-tile__info {
@@ -96,11 +99,13 @@
 }
 .card-tile__type-badge {
   display: inline-block;
+  font-family: var(--font-mono);
   font-size: 0.62rem;
   font-weight: 700;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  letter-spacing: 0.03em;
+  border-radius: 0;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 /* ── List row ──────────────────────────────────────────────────────────────── */
@@ -115,7 +120,7 @@
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.card-list-row:hover { border-color: var(--accent); }
+.card-list-row:hover { border-color: var(--accent); box-shadow: var(--glow-sm); }
 
 .card-list-row__thumb {
   width: 36px;
@@ -145,9 +150,9 @@
 .card-list-row__quick-add {
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: 0;
   background: var(--accent);
-  color: #1a1a0e;
+  color: var(--on-accent);
   font-size: 1.2rem;
   font-weight: 700;
   line-height: 1;

@@ -15,9 +15,9 @@
   width: 70px;
   height: 98px;
   object-fit: cover;
-  border-radius: 5px;
+  border-radius: 0;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--glow-sm);
 }
 
 .binder-card-modal__info {
@@ -29,7 +29,8 @@
 }
 
 .binder-card-modal__name {
-  font-size: 0.95rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
@@ -42,12 +43,13 @@
 
 .binder-card-modal__badge {
   display: inline-block;
+  font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 700;
   padding: 2px 7px;
-  border-radius: 4px;
+  border-radius: 0;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .binder-card-modal__badge--collection {
@@ -97,7 +99,7 @@
 .binder-card-modal__qty-btn {
   width: 24px;
   height: 24px;
-  border-radius: 4px;
+  border-radius: 0;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
@@ -108,8 +110,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.12s;
+  transition: background 0.12s, border-color 0.12s;
 }
+.binder-card-modal__qty-btn:hover { background: var(--surface-2); border-color: var(--accent); }
 .binder-card-modal__qty-btn:hover { background: var(--surface-2); }
 .binder-card-modal__qty-btn:disabled { opacity: 0.35; cursor: default; }
 

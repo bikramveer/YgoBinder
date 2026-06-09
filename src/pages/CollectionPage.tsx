@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { CONDITION_ORDER, CONDITION_LABELS } from '../types';
-import type { CollectionEntry, Condition } from '../types';
+import type { CollectionEntry, Condition, ConditionCopy } from '../types';
 import { exportCollection } from '../utils/exportCsv';
 import './CollectionPage.css';
 
@@ -34,8 +34,6 @@ function bestCondition(entry: CollectionEntry): Condition {
   );
 }
 
-type RemoveDialog = { entry: CollectionEntry; condition: Condition; amount: number } | null;
-
 export function CollectionPage() {
   const { state, dispatch } = useCollection();
 
@@ -43,19 +41,13 @@ export function CollectionPage() {
   const [sort,             setSort]             = useState<Sort>('date_new');
   const [filterCondition,  setFilterCondition]  = useState<Condition | ''>('');
   const [filterRarity,     setFilterRarity]     = useState('');
-  const [removing,         setRemoving]         = useState<RemoveDialog>(null);
-  const [selectedConditions, setSelectedConditions] = useState<Record<string, Condition>>({});
+  const [selectedEntry,    setSelectedEntry]    = useState<CollectionEntry | null>(null);
 
-  const getSelectedCondition = (entry: CollectionEntry): Condition =>
-    selectedConditions[entry.id] ?? bestCondition(entry);
-
-  // Unique rarities present in the collection
   const rarities = useMemo(
     () => [...new Set(state.collection.map((e) => e.rarity))].sort(),
     [state.collection],
   );
 
-  // Conditions present in the collection
   const conditionsPresent = useMemo(
     () => CONDITION_ORDER.filter((c) => state.collection.some((e) => e.copies.some((x) => x.condition === c))),
     [state.collection],
@@ -69,13 +61,8 @@ export function CollectionPage() {
         e.setName.toLowerCase().includes(q) ||
         e.setCode.toLowerCase().includes(q),
     );
-
-    if (filterCondition) {
-      list = list.filter((e) => e.copies.some((c) => c.condition === filterCondition));
-    }
-    if (filterRarity) {
-      list = list.filter((e) => e.rarity === filterRarity);
-    }
+    if (filterCondition) list = list.filter((e) => e.copies.some((c) => c.condition === filterCondition));
+    if (filterRarity)    list = list.filter((e) => e.rarity === filterRarity);
 
     return [...list].sort((a, b) => {
       switch (sort) {
@@ -96,40 +83,30 @@ export function CollectionPage() {
 
   const totalCopiesCount = state.collection.reduce((s, e) => s + totalCopies(e), 0);
 
-  const handleConditionChange = (entry: CollectionEntry, cond: Condition) => {
-    setSelectedConditions((prev) => ({ ...prev, [entry.id]: cond }));
-    if (removing?.entry.id === entry.id) {
-      const newMax = entry.copies.find((c) => c.condition === cond)?.quantity ?? 1;
-      setRemoving((r) => r && { ...r, condition: cond, amount: Math.min(r.amount, newMax) });
-    }
+  const handleRemove = (e: React.MouseEvent, entry: CollectionEntry) => {
+    e.stopPropagation();
+    dispatch({ type: 'REMOVE_FROM_COLLECTION', id: entry.id });
+    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
   };
 
-  const handleRemoveClick = (entry: CollectionEntry) => {
-    const cond = getSelectedCondition(entry);
-    const qty = entry.copies.find((c) => c.condition === cond)?.quantity ?? 0;
-    if (qty <= 1) {
-      dispatch({ type: 'REMOVE_COLLECTION_COPIES', id: entry.id, amount: 1, condition: cond });
+  const handleModalQtyChange = (condition: Condition, delta: number) => {
+    if (!selectedEntry) return;
+    const newCopies: ConditionCopy[] = selectedEntry.copies
+      .map((c) => c.condition === condition ? { ...c, quantity: c.quantity + delta } : c)
+      .filter((c) => c.quantity > 0);
+
+    if (newCopies.length === 0) {
+      dispatch({ type: 'REMOVE_FROM_COLLECTION', id: selectedEntry.id });
+      setSelectedEntry(null);
     } else {
-      setRemoving({ entry, condition: cond, amount: 1 });
+      dispatch({ type: 'UPDATE_COLLECTION_COPIES', id: selectedEntry.id, copies: newCopies });
+      setSelectedEntry({ ...selectedEntry, copies: newCopies });
     }
-  };
-
-  const confirmRemove = () => {
-    if (!removing) return;
-    dispatch({
-      type: 'REMOVE_COLLECTION_COPIES',
-      id: removing.entry.id,
-      amount: removing.amount,
-      condition: removing.condition,
-    });
-    setRemoving(null);
   };
 
   return (
     <main className="page">
-      <h1 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent)' }}>
-        My Collection
-      </h1>
+      <h1 className="page-title">My Collection</h1>
 
       {/* Toolbar */}
       <div className="collection-toolbar">
@@ -146,7 +123,6 @@ export function CollectionPage() {
               <option key={o.value} value={o.value}>{o.label}</option>
             ))}
           </select>
-
           <select
             value={filterCondition}
             onChange={(e) => setFilterCondition(e.target.value as Condition | '')}
@@ -156,15 +132,9 @@ export function CollectionPage() {
               <option key={c} value={c}>{CONDITION_LABELS[c]} ({c})</option>
             ))}
           </select>
-
-          <select
-            value={filterRarity}
-            onChange={(e) => setFilterRarity(e.target.value)}
-          >
+          <select value={filterRarity} onChange={(e) => setFilterRarity(e.target.value)}>
             <option value="">All rarities</option>
-            {rarities.map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
+            {rarities.map((r) => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
         <span className="collection-toolbar__count">
@@ -180,7 +150,6 @@ export function CollectionPage() {
         )}
       </div>
 
-      {/* Empty state */}
       {state.collection.length === 0 && (
         <div className="empty-state">
           <strong>No cards yet</strong>
@@ -199,12 +168,14 @@ export function CollectionPage() {
       {entries.length > 0 && (
         <div className="collection-list">
           {entries.map((entry) => {
-            const selectedCond = getSelectedCondition(entry);
-            const selectedCopies = entry.copies.find((c) => c.condition === selectedCond);
-            const multi = entry.copies.length > 1;
-
+            const best = bestCondition(entry);
+            const total = totalCopies(entry);
             return (
-              <div key={entry.id} className="collection-row">
+              <div
+                key={entry.id}
+                className="collection-row"
+                onClick={() => setSelectedEntry(entry)}
+              >
                 {entry.cardImageUrl && (
                   <img
                     className="collection-row__thumb"
@@ -212,47 +183,22 @@ export function CollectionPage() {
                     alt={entry.cardName}
                   />
                 )}
-
                 <div className="collection-row__info">
                   <span className="collection-row__name">{entry.cardName}</span>
                   <span className="collection-row__set">
-                    {entry.setName}
-                    {' · '}
-                    <span style={{ fontFamily: 'monospace' }}>{entry.setCode}</span>
+                    {entry.setName} · <span className="collection-row__code">{entry.setCode}</span>
                   </span>
                   <span className="collection-row__rarity">{entry.rarity}</span>
                 </div>
-
                 <div className="collection-row__meta">
-                  {multi ? (
-                    <select
-                      className="collection-row__condition-select"
-                      value={selectedCond}
-                      onChange={(e) => handleConditionChange(entry, e.target.value as Condition)}
-                    >
-                      {entry.copies.map((c) => (
-                        <option key={c.condition} value={c.condition}>
-                          {c.quantity}× {CONDITION_LABELS[c.condition]} ({c.condition})
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="collection-row__condition-text">
-                      {CONDITION_LABELS[selectedCond]} ({selectedCond})
-                    </span>
-                  )}
-
-                  <span className="collection-row__qty">
-                    {selectedCopies?.quantity ?? totalCopies(entry)}
-                    {multi && (
-                      <span className="collection-row__qty-sub"> / {totalCopies(entry)}</span>
-                    )}
+                  <span className="collection-row__condition">
+                    {CONDITION_LABELS[best]} ({best})
+                    {entry.copies.length > 1 && ` +${entry.copies.length - 1}`}
                   </span>
-
+                  <span className="collection-row__qty">{total}×</span>
                   <button
-                    className="btn btn-danger"
-                    style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem' }}
-                    onClick={() => handleRemoveClick(entry)}
+                    className="btn btn-danger collection-row__remove"
+                    onClick={(e) => handleRemove(e, entry)}
                   >
                     Remove
                   </button>
@@ -263,67 +209,65 @@ export function CollectionPage() {
         </div>
       )}
 
-      {/* Remove dialog */}
-      {removing && (() => {
-        const copiesOfCond = removing.entry.copies.find((c) => c.condition === removing.condition);
-        const maxQty = copiesOfCond?.quantity ?? 1;
-        return (
-          <div className="modal-backdrop" onClick={() => setRemoving(null)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '360px' }}>
-              <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.25rem' }}>Remove Copies</h2>
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-                {removing.entry.cardName} — {removing.entry.setCode}
-              </p>
-
-              {removing.entry.copies.length > 1 && (
-                <div style={{ marginBottom: '0.75rem' }}>
-                  <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
-                    Which condition?
-                  </label>
-                  <select
-                    value={removing.condition}
-                    onChange={(e) => {
-                      const cond = e.target.value as Condition;
-                      const newMax = removing.entry.copies.find((c) => c.condition === cond)?.quantity ?? 1;
-                      setRemoving((r) => r && { ...r, condition: cond, amount: Math.min(r.amount, newMax) });
-                    }}
-                    style={{ fontSize: '0.82rem' }}
-                  >
-                    {removing.entry.copies.map((c) => (
-                      <option key={c.condition} value={c.condition}>
-                        {CONDITION_LABELS[c.condition]} ({c.condition}) — {c.quantity} {c.quantity === 1 ? 'copy' : 'copies'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>
-                  How many to remove? (you own {maxQty})
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={maxQty}
-                  value={removing.amount}
-                  onChange={(e) =>
-                    setRemoving((s) =>
-                      s && { ...s, amount: Math.min(maxQty, Math.max(1, parseInt(e.target.value, 10) || 1)) }
-                    )
-                  }
-                  style={{ width: '80px' }}
+      {/* Detail modal */}
+      {selectedEntry && (
+        <div className="modal-backdrop" onClick={() => setSelectedEntry(null)}>
+          <div className="modal entry-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="entry-modal__header">
+              {selectedEntry.cardImageUrl && (
+                <img
+                  className="entry-modal__img"
+                  src={selectedEntry.cardImageUrl}
+                  alt={selectedEntry.cardName}
                 />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-                <button className="btn btn-ghost" onClick={() => setRemoving(null)}>Cancel</button>
-                <button className="btn btn-danger" onClick={confirmRemove}>Remove</button>
+              )}
+              <div className="entry-modal__info">
+                <h2 className="entry-modal__name">{selectedEntry.cardName}</h2>
+                <p className="entry-modal__set">{selectedEntry.setName}</p>
+                <p className="entry-modal__code">{selectedEntry.setCode} · {selectedEntry.rarity}</p>
+                <p className="entry-modal__date">
+                  Added {new Date(selectedEntry.dateAdded).toLocaleDateString()}
+                </p>
               </div>
             </div>
+
+            <div className="entry-modal__section">
+              <p className="entry-modal__section-label">Copies Owned</p>
+              {selectedEntry.copies.map((c) => (
+                <div key={c.condition} className="entry-modal__copy-row">
+                  <span className="entry-modal__copy-cond">
+                    {CONDITION_LABELS[c.condition]} ({c.condition})
+                  </span>
+                  <div className="entry-modal__qty-controls">
+                    <button
+                      className="entry-modal__qty-btn"
+                      onClick={() => handleModalQtyChange(c.condition, -1)}
+                    >−</button>
+                    <span className="entry-modal__qty-val">{c.quantity}</span>
+                    <button
+                      className="entry-modal__qty-btn"
+                      onClick={() => handleModalQtyChange(c.condition, 1)}
+                    >+</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="entry-modal__footer">
+              <button className="btn btn-ghost" onClick={() => setSelectedEntry(null)}>Close</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  dispatch({ type: 'REMOVE_FROM_COLLECTION', id: selectedEntry.id });
+                  setSelectedEntry(null);
+                }}
+              >
+                Remove All
+              </button>
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </main>
   );
 }

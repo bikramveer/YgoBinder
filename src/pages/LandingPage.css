@@ -15,16 +15,23 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(15, 15, 26, 0.85);
+  background: var(--surface-glass);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border);
 }
 
 .landing__logo {
-  font-size: 1.2rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
   font-weight: 800;
   color: var(--accent);
   letter-spacing: 0.02em;
+}
+
+.landing__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 .landing__signin-btn {
@@ -41,11 +48,13 @@
 }
 
 .landing__title {
-  font-size: clamp(2rem, 6vw, 3.2rem);
-  font-weight: 900;
-  line-height: 1.15;
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  font-weight: 800;
+  line-height: 1.1;
   margin-bottom: 1.25rem;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
 }
 
 .landing__title-accent {
@@ -81,10 +90,10 @@
 .landing__screenshot-wrap {
   width: 100%;
   max-width: 900px;
-  border-radius: var(--radius-lg);
+  border-radius: 0;
   overflow: hidden;
-  border: 1px solid var(--border-light);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--accent);
+  box-shadow: var(--glow), var(--shadow-lg);
 }
 
 .landing__screenshot-wrap img {
@@ -115,11 +124,14 @@
 }
 
 .landing__section-title {
+  font-family: var(--font-display);
   text-align: center;
-  font-size: 1.6rem;
+  font-size: 1.8rem;
   font-weight: 800;
   margin-bottom: 2rem;
   color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .landing__feature-grid {
@@ -142,7 +154,7 @@
 .landing__feature-card:hover {
   border-color: var(--accent);
   transform: translateY(-3px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--glow);
 }
 
 .landing__feature-icon {
@@ -151,7 +163,8 @@
 }
 
 .landing__feature-title {
-  font-size: 1rem;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--text);
 }

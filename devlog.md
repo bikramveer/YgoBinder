@@ -1,4 +1,4 @@
-# YgoBinder — Dev Log & Learning Reference
+# YgoBindr — Dev Log & Learning Reference
 
 This file is a running record of everything built, every architectural decision made, and why. It's written so you can come back after the project is done and deep-dive into any topic you want to understand better.
 
@@ -28,11 +28,11 @@ This file is a running record of everything built, every architectural decision 
 
 ## 1. Project Overview
 
-**YgoBinder** is a Yu-Gi-Oh card collection management web app.
+**YgoBindr** is a Yu-Gi-Oh card collection management web app.
 
 **Stack:** React + TypeScript + Vite (frontend) · Node.js + Express + PostgreSQL (backend)  
 **Deployed:** Vercel (frontend) · Railway (backend + database)  
-**Repo:** https://github.com/bikramveer/YgoBinder
+**Repo:** https://github.com/bikramveer/YgoBindr
 
 **Core goals:**
 - Search the full YGO card database (via YGOPRODeck free API)
@@ -483,13 +483,13 @@ Resend's free tier only allows sending emails to the address used to sign up for
 |---|---|---|
 | Vercel | `ygobindr.com` → 308 → `www.ygobindr.com` (Production) | Vercel treats www as the Production deployment |
 | Railway | `FRONTEND_URL=https://www.ygobindr.com`, `api.ygobindr.com` CNAME → Railway URL | Must use www, not apex |
-| Resend | `EMAIL_FROM=YgoBinder <noreply@ygobindr.com>` in Railway env vars | Domain verified with DNS records |
+| Resend | `EMAIL_FROM=YgoBindr <noreply@ygobindr.com>` in Railway env vars | Domain verified with DNS records |
 
 **War stories:**
 
 **CORS blocked after domain switch:** `FRONTEND_URL` in Railway had escaped quotes (`"\"https://ygobindr.com"`) and pointed to the apex domain instead of www. Vercel routes apex → 308 redirect → www, so CORS comparisons failed because the origin arriving at Railway was `https://www.ygobindr.com` but the allowed origin was `https://ygobindr.com`. Fix: `FRONTEND_URL=https://www.ygobindr.com` (no quotes, www prefix).
 
-**OTP emails not sending:** `EMAIL_FROM` env var wasn't set in Railway. The backend fell back to Resend's default sender `onboarding@resend.dev`, which is restricted to the Resend account owner's email on the free tier. Fix: add `EMAIL_FROM=YgoBinder <noreply@ygobindr.com>` to Railway env vars after verifying the domain in Resend.
+**OTP emails not sending:** `EMAIL_FROM` env var wasn't set in Railway. The backend fell back to Resend's default sender `onboarding@resend.dev`, which is restricted to the Resend account owner's email on the free tier. Fix: add `EMAIL_FROM=YgoBindr <noreply@ygobindr.com>` to Railway env vars after verifying the domain in Resend.
 
 ---
 

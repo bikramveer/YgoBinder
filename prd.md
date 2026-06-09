@@ -1,8 +1,8 @@
-# YgoBinder — Product Requirements Document
+# YgoBindr — Product Requirements Document
 
 ## Overview
 
-YgoBinder is a web application for Yu-Gi-Oh collectors to manage their physical card collection. Users can search the full card database, mark cards they own (with specific set printings, quantity, and condition), and maintain a "To Get" watchlist with live price data to help them complete their collection efficiently. The app is designed to grow from a local-only MVP into a full cross-device platform with user accounts, price history, and a mobile app.
+YgoBindr is a web application for Yu-Gi-Oh collectors to manage their physical card collection. Users can search the full card database, mark cards they own (with specific set printings, quantity, and condition), and maintain a "To Get" watchlist with live price data to help them complete their collection efficiently. The app is designed to grow from a local-only MVP into a full cross-device platform with user accounts, price history, and a mobile app.
 
 ---
 
@@ -166,7 +166,7 @@ interface AppState {
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  YgoBinder          [Search]  [My Collection]  [To Get]  │
+│  YgoBindr          [Search]  [My Collection]  [To Get]  │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  [Search view / Collection view / To Get view]           │
