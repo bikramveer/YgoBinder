@@ -77,6 +77,40 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /prices/collection-value — authenticated ──────────────────────────────
+// Returns the most recent price_usd per entry_key for the user's entire collection.
+// Used by the Dashboard to compute Est. Value without N individual /prices calls.
+
+router.get('/collection-value', requireAuth, async (req: Request, res: Response) => {
+  const userId = req.user!.userId;
+  try {
+    const result = await pool.query(
+      `SELECT
+         ce.entry_key,
+         ph.price_usd::float AS price_usd
+       FROM (
+         SELECT DISTINCT ON (entry_key) entry_key, card_id, set_code, rarity
+         FROM collection_entries
+         WHERE user_id = $1
+       ) ce
+       LEFT JOIN LATERAL (
+         SELECT price_usd
+         FROM price_history
+         WHERE card_id   = ce.card_id
+           AND set_code  = ce.set_code
+           AND rarity    = ce.rarity
+         ORDER BY recorded_at DESC
+         LIMIT 1
+       ) ph ON true`,
+      [userId],
+    );
+    res.json({ prices: result.rows as { entry_key: string; price_usd: number | null }[] });
+  } catch (err) {
+    console.error('Collection value error:', err);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
 // POST /prices/sync — manual trigger for testing, remove before public launch
 router.post('/sync', requireAuth, async (_req: Request, res: Response) => {
   res.json({ message: 'Price sync started. Check server logs for progress.' });

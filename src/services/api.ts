@@ -375,6 +375,17 @@ export const pricesApi = {
     const body = (await res.json()) as { rates: Record<string, number> };
     return body.rates;
   },
+
+  async getCollectionValue(): Promise<Map<string, number>> {
+    const res = await apiFetch('/prices/collection-value');
+    if (!res.ok) return new Map();
+    const body = (await res.json()) as { prices: { entry_key: string; price_usd: number | null }[] };
+    const map = new Map<string, number>();
+    for (const row of body.prices) {
+      if (row.price_usd !== null) map.set(row.entry_key, row.price_usd);
+    }
+    return map;
+  },
 };
 
 // ── Binder API ────────────────────────────────────────────────────────────────
