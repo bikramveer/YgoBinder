@@ -97,8 +97,10 @@ export function SearchPage() {
 
   return (
     <main className="page">
+      <h1 className="page-title" data-decode data-caret>Search & Browse</h1>
       <div className="search-page__bar">
-        <div className="search-page__input-wrap">
+        <div className="holo-input search-page__input-wrap" data-prompt>
+          <span className="holo-input__prompt" aria-hidden="true">&gt;</span>
           <input
             className="search-page__input"
             type="search"
@@ -107,6 +109,7 @@ export function SearchPage() {
             onChange={(e) => setQuery(e.target.value)}
             autoFocus
           />
+          <span className="holo-input__beam" aria-hidden="true"></span>
         </div>
         <div className="search-page__filters">
           <select value={cardType} onChange={(e) => setCardType(e.target.value)}>

@@ -41,7 +41,7 @@
 .wishlist-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 0.4rem;
 }
 
 /* ── Single entry row ── */
@@ -49,15 +49,18 @@
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.75rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
   flex-wrap: wrap;
   cursor: pointer;
-  transition: background 0.12s;
+  transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
 }
 
 .wishlist-row:hover {
   background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: var(--glow-sm);
 }
 
 .wishlist-row__thumb {

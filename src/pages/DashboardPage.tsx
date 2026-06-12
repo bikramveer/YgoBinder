@@ -6,6 +6,8 @@ import { CONDITION_LABELS, SUPPORTED_CURRENCIES } from '../types';
 import type { CollectionEntry, CurrencyCode } from '../types';
 import { pricesApi } from '../services/api';
 import { getPriceFromCache } from '../utils/priceCache';
+import { HoloRing } from '../components/progress/HoloRing';
+import { ProgressBar } from '../components/progress/ProgressBar';
 import './DashboardPage.css';
 
 const RING_R = 20;
@@ -144,7 +146,7 @@ export function DashboardPage() {
 
   return (
     <main className="page dashboard">
-      <h1 className="dashboard__title">Dashboard</h1>
+      <h1 className="dashboard__title" data-decode data-caret>Dashboard</h1>
 
       {/* ── Stats ── */}
       <div className="dashboard__stats">
@@ -204,7 +206,7 @@ export function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <BinderRing pct={pctFull} ownedSlots={filledSlots} totalSlots={totalSlots} />
+                <HoloRing value={filledSlots} max={Math.max(totalSlots, 1)} size={68} sublabel={`${filledSlots}/${totalSlots}`} caption="SLOTS" />
                 <span className="dashboard__binder-row__arrow">›</span>
               </Link>
             ))}
@@ -218,16 +220,13 @@ export function DashboardPage() {
           <h2 className="dashboard__section-title">Wishlist</h2>
 
           <div className="dashboard__wishlist-progress">
-            <div className="dashboard__progress-bar">
-              <div
-                className="dashboard__progress-bar__fill"
-                style={{ width: `${wishlistProgress.pct}%` }}
-              />
-            </div>
-            <span className="dashboard__progress-label">
-              {wishlistProgress.acquired} of {wishlistProgress.desired} copies acquired
-              <span className="dashboard__progress-pct"> · {wishlistProgress.pct}%</span>
-            </span>
+            <ProgressBar
+              value={wishlistProgress.acquired}
+              max={wishlistProgress.desired}
+              label={`${wishlistProgress.acquired} of ${wishlistProgress.desired} copies acquired`}
+              showPct
+              holo
+            />
           </div>
 
           {topNeeded.length > 0 && (

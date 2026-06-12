@@ -14,6 +14,32 @@ const NAV_ITEMS = [
   { to: '/binder', label: 'Binders' },
 ];
 
+function LogoEmblem() {
+  return (
+    <NavLink className="lp-logo" to="/dashboard" aria-label="YgoBindr home">
+      <svg className="lp-emblem" width="38" height="33" viewBox="0 0 96 84" fill="none" aria-hidden="true">
+        <g transform="rotate(-19,48,66)">
+          <rect x="34" y="21" width="28" height="42" rx="3.5" fill="var(--accent)" fillOpacity=".07" stroke="var(--accent)" strokeWidth="2"/>
+          <ellipse cx="48" cy="42" rx="6" ry="11" fill="none" stroke="var(--accent)" strokeWidth="2"/>
+        </g>
+        <g transform="rotate(19,48,66)">
+          <rect x="34" y="21" width="28" height="42" rx="3.5" fill="var(--accent)" fillOpacity=".07" stroke="var(--accent)" strokeWidth="2"/>
+          <ellipse cx="48" cy="42" rx="6" ry="11" fill="none" stroke="var(--accent)" strokeWidth="2"/>
+        </g>
+        <g>
+          <rect x="34" y="20" width="28" height="42" rx="3.5" fill="var(--accent)" fillOpacity=".07" stroke="var(--accent)" strokeWidth="2"/>
+          <ellipse cx="48" cy="41" rx="6" ry="11" fill="none" stroke="var(--accent)" strokeWidth="2"/>
+        </g>
+        <text x="35" y="60" textAnchor="middle" fontFamily="Orbitron" fontWeight="900" fontSize="46"
+          fill="var(--text)" paintOrder="stroke" stroke="var(--bg)" strokeWidth="3.5">Y</text>
+        <text x="63" y="48" textAnchor="middle" fontFamily="Orbitron" fontWeight="900" fontSize="46"
+          fill="var(--text)" paintOrder="stroke" stroke="var(--bg)" strokeWidth="3.5">B</text>
+      </svg>
+      <span className="lp-logo__wm">Ygo<span>Bindr</span></span>
+    </NavLink>
+  );
+}
+
 export function Navbar() {
   const { user, isLoggedIn, isLoading, logout } = useAuth();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -38,7 +64,8 @@ export function Navbar() {
           <span />
         </button>
 
-        <NavLink to="/dashboard" className="navbar__logo">YgoBindr</NavLink>
+        {/* <NavLink to="/dashboard" className="navbar__logo">YgoBindr</NavLink> */}
+        <LogoEmblem />
 
         <div className="navbar__links">
           {NAV_ITEMS.map((item) => (
