@@ -10,7 +10,7 @@ import { HoloRing } from '../components/progress/HoloRing';
 import { ProgressBar } from '../components/progress/ProgressBar';
 import './DashboardPage.css';
 
-const RING_R = 20;
+// const RING_R = 20;
 // const RING_CIRC = 2 * Math.PI * RING_R;
 
 function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, number>): string {
