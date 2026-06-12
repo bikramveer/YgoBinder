@@ -20,9 +20,12 @@ This file is a running record of everything built, every architectural decision 
 6. [Cleaning Branch](#6-cleaning-branch-2026-06-08) — Wishlist rename + multi-select CardPickerModal
 7. [Price History](#7-phase-6-price-history)
 8. [Binder Backend Sync](#8-phase-7-binder-backend-sync)
-9. [What's Left to Build](#9-whats-left-to-build)
-10. [Key Technical Decisions](#6-key-technical-decisions)
-11. [Learning Resources](#7-learning-resources)
+9. [Alternate Artwork Feature](#10-alternate-artwork-feature--yugipedia-integration-2026-06-09)
+10. [Price History Relocation + Search Improvements](#11-price-history-relocation--searchbrowse-improvements-2026-06-09)
+11. [Dashboard Est. Value + Binder Stats + Guest Guards](#12-dashboard-est-value--binder-stats--guest-guards-2026-06-09)
+12. [What's Left to Build](#6-whats-left-to-build)
+13. [Key Technical Decisions](#6-key-technical-decisions)
+14. [Learning Resources](#7-learning-resources)
 
 ---
 
@@ -920,15 +923,106 @@ Picker shows 4 thumbnails (totalArtworks = 4). Adding from RA02 shows alternate 
 
 ---
 
+## 12. Dashboard Est. Value + Binder Stats + Guest Guards (2026-06-09)
+
+### Est. Value stat
+
+**Backend — `GET /prices/collection-value`** (authenticated):
+Uses a lateral join to get the most recent price snapshot for every unique `(card_id, set_code, rarity)` in the user's collection in one query:
+```sql
+SELECT ce.entry_key, ph.price_usd::float
+FROM (
+  SELECT DISTINCT ON (entry_key) entry_key, card_id, set_code, rarity
+  FROM collection_entries WHERE user_id = $1
+) ce
+LEFT JOIN LATERAL (
+  SELECT price_usd FROM price_history
+  WHERE card_id = ce.card_id AND set_code = ce.set_code AND rarity = ce.rarity
+  ORDER BY recorded_at DESC LIMIT 1
+) ph ON true
+```
+
+**Why lateral join:** A regular JOIN would require a subquery per row or a window function to rank and deduplicate. `LATERAL` lets you run a correlated subquery per row of the outer query, selecting only the single most recent price row — clean and efficient.
+
+**Guest fallback — `getPriceFromCache`** (`src/utils/priceCache.ts`):
+Guests can't hit `/prices/collection-value` (requires auth). Instead, `getPriceFromCache(cardId, setCode, rarity)` reads the card's localStorage entry (written when the card detail modal was opened) and finds the matching `card_sets` entry by `set_code + set_rarity`. Returns `null` if the card was never opened — so guest Est. Value is partial but better than nothing.
+
+**Frontend — `estValue` useMemo:**
+Iterates all collection entries, looks up each in `priceMap` (Map<entry_key, price_usd>), multiplies by total copy count, sums. If a card has no price yet, it contributes 0.
+
+---
+
+### Circular SVG progress ring
+
+**Component: `BinderRing`** in `DashboardPage.tsx`:
+
+Uses `stroke-dasharray` + `stroke-dashoffset` on an SVG circle to draw a partial arc:
+```
+dasharray  = circumference (full circle length)
+dashoffset = circumference × (1 - pct)  → draws pct% of the circle
+rotate -90° so the arc starts at 12 o'clock (default SVG start is 3 o'clock)
+```
+
+The ring is 48×48 viewBox, radius 20, showing `%` text centered and `filled/total` sub-text below it. Both text elements use SVG `<text>` with `textAnchor="middle"`.
+
+**Why no 3 o'clock start correction needed for `transform-origin`:** The `transform="rotate(-90 24 24)"` rotates around the circle's center (cx=24, cy=24), not the default SVG origin (0,0). Must pass the center explicitly or the rotation goes off-axis.
+
+---
+
+### Guest value guards
+
+- **Est. Value stat tile:** Guests see `$-.--` with dim styling + "Sign in to track value" note. Previously showed partial guest value from cache with "Open cards to load prices" note — clearer to just gate it.
+- **Binder-row est. value:** Hidden for guests via `{isLoggedIn && binderValue > 0 && ...}`. The `binderValue` is still computed (priceMap exists for guests from cache) but not displayed.
+- **No animations on ring:** User found the breathing stroke-opacity pulse and glow drop-shadow "weird" — both keyframes removed. Ring is static.
+
+---
+
+### Binder selection screen
+
+**Problem:** The `<select>` dropdown for binder switching was functional but felt out of place in a visual card app. With multiple binders, users wanted something they could see and click.
+
+**Solution:** When `state.binders.length > 1` and no binder is selected, render a grid of `.binder-card` elements instead of the spread view. Each card shows:
+- Cover image (or name/size placeholder with display font + accent color)
+- Name, size, page count, filled/total slots, % full, owned count
+
+**`binder` computation change:**
+```ts
+// Before: always auto-select state.binders[0] if no selectedBinderId
+state.binders.find((b) => b.id === selectedBinderId) ?? state.binders[0] ?? null
+
+// After: only auto-select when there's exactly 1 binder
+state.binders.find((b) => b.id === selectedBinderId) ??
+  (state.binders.length === 1 ? state.binders[0] : null)
+```
+
+This means multi-binder users start on the selection screen. Single-binder users still auto-open. After deleting a binder (which sets `selectedBinderId(null)`), multi-binder users return to the selection screen automatically.
+
+**Back navigation:** When inside a binder with multiple binders available, a "← All Binders" button appears in the action bar — sets `selectedBinderId(null)`.
+
+---
+
+### Cropped binder cover art
+
+**Before:** `binderCovers.ts` used `https://images.ygoprodeck.com/images/cards/{id}.jpg` — full card images with borders, text boxes, and stats.
+
+**After:** Changed to `https://images.ygoprodeck.com/images/cards_cropped/{id}.jpg` — just the artwork, no card frame.
+
+**Aspect ratio:** Full cards are `421 / 614` (portrait). Cropped arts are approximately square. Updated `cover-picker__item` and `.binder-card__cover` to `aspect-ratio: 1`.
+
+**Backward compatibility:** Existing saved `coverUrl` values pointing to full-card URLs still render correctly in the binder spread (just `<img src={binder.coverUrl} />`). They won't be recognized as "selected" in the updated picker, but the user can re-pick.
+
+---
+
 ## 6. What's Left to Build
 
 | Phase | Feature | Notes |
 |---|---|---|
 | 6 | ✅ Price history | Done — daily snapshots, exchange rates; chart now in Collection/Wishlist modals |
 | 7 | ✅ Binder backend sync | Done — binders fully synced, non-optimistic create/add-page. |
+| — | ✅ Est. Value on Dashboard | Done — lateral join backend, guest cache fallback, per-binder value |
 | 8 | Mobile app | React Native, shares the Phase 5 backend. |
 | — | Google OAuth | Deferred — user wants to implement to learn it. |
-| — | Est. Value stat on Dashboard | Needs bulk price fetching in the backend. |
+| — | Edition display (1st/Unlimited/Limited) | Deferred — no edition-split pricing available from free sources |
 | — | Quarter Century Stampede printings | Deferred — YGOPRODeck API limitation (one entry per set_code+rarity). |
 
 ---
