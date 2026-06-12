@@ -316,6 +316,39 @@
   color: var(--text-dim);
 }
 
+/* ── HoloRing side layout ── */
+.binder-spread-layout {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.binder-spread-layout .binder-spread-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
+.binder-side-ring {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.binder-side-ring__label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1300px) {
+  .binder-side-ring { display: none !important; }
+}
+
 /* ── Responsive ── */
 @media (max-width: 600px) {
   .binder-spread {

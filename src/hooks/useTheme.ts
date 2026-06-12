@@ -10,5 +10,16 @@ export function useTheme() {
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
-  return { dark, toggle: () => setDark(d => !d) };
+  const toggle = () => {
+    const next = !dark;
+    const destBg = next ? '#060c1c' : '#eef2fa';
+    const apply = () => setDark(d => !d);
+    if (window.HoloTransition) {
+      window.HoloTransition.fade(apply, { color: destBg });
+    } else {
+      apply();
+    }
+  };
+
+  return { dark, toggle };
 }

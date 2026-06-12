@@ -120,17 +120,20 @@ export function WishlistPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Wishlist</h1>
+      <h1 className="page-title" data-decode data-caret>Wishlist</h1>
 
       {/* Toolbar */}
       <div className="wishlist-toolbar">
-        <input
-          className="wishlist-toolbar__search"
-          type="search"
-          placeholder="Search cards…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+        <div className="holo-input wishlist-toolbar__search" data-prompt>
+          <span className="holo-input__prompt" aria-hidden="true">&gt;</span>
+          <input
+            type="search"
+            placeholder="Search cards…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <span className="holo-input__beam" aria-hidden="true"></span>
+        </div>
         <div className="wishlist-toolbar__controls">
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
             {SORT_OPTIONS.map((o) => (

@@ -1,5 +1,5 @@
 /* ── Design tokens — KaibaCorp Terminal (light) ──────────────────────────── */
-:root {
+:root, [data-theme="light"] {
   --bg:               #eef2fa;
   --surface:          #ffffff;
   --surface-2:        #e8edf8;
@@ -35,6 +35,26 @@
   --glow-sm:          0 0 10px rgba(26, 61, 181, 0.22);
 
   --modal-bg:         rgba(12, 26, 66, 0.35);
+
+  /* ── Holographic FX ── */
+  --accent-bright:    #2a55d8;
+  --glow-lg:          0 0 36px rgba(26, 61, 181, 0.40);
+  --holo-line:        rgba(26, 61, 181, 0.20);
+  --holo-scan:        rgba(26, 61, 181, 0.08);
+  --holo-edge:        rgba(26, 61, 181, 0.55);
+
+  /* ── Motion system ── */
+  --dur-instant: 80ms;  --dur-fast: 150ms;  --dur-base: 200ms;
+  --dur-slow: 300ms;    --dur-slower: 450ms;
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-snap:   cubic-bezier(0.5, 0, 0.1, 1);
+
+  /* ── Card frame colors ── */
+  --frame-normal:   #d4a017;
+  --frame-effect:   #f97600;
+  --frame-spell:    #1d9e74;
+  --frame-trap:     #bc5a84;
 
   --nav-height:       56px;
   --font:             'Libre Franklin', system-ui, -apple-system, sans-serif;
@@ -75,6 +95,12 @@
   --glow-sm:          0 0 10px rgba(58, 143, 255, 0.35);
 
   --modal-bg:         rgba(0, 8, 24, 0.75);
+
+  --accent-bright:    #5ba6ff;
+  --glow-lg:          0 0 40px rgba(58, 143, 255, 0.55);
+  --holo-line:        rgba(74, 150, 240, 0.32);
+  --holo-scan:        rgba(58, 143, 255, 0.07);
+  --holo-edge:        rgba(58, 143, 255, 0.80);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
@@ -140,6 +166,8 @@ input:focus, select:focus, textarea:focus {
 
 /* ── Utility classes ───────────────────────────────────────────────────────── */
 .page {
+  position: relative;
+  z-index: 1;
   padding: 1rem;
   padding-top: calc(var(--nav-height) + 1rem);
   max-width: 1200px;
@@ -390,6 +418,11 @@ input:focus, select:focus, textarea:focus {
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.94); }
   to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: var(--glow-sm); }
+  50%      { box-shadow: var(--glow-lg); }
 }
 
 /* Route page fade-in */

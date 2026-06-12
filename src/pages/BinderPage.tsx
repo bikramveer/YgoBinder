@@ -9,6 +9,7 @@ import { BinderCoverPicker } from '../components/Binder/BinderCoverPicker';
 import type { Binder, BinderPage, BinderSlot } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
+import { HoloRing } from '../components/progress/HoloRing';
 import './BinderPage.css';
 
 type ModalState =
@@ -84,6 +85,11 @@ export function BinderPage() {
   }
 
   const slotCount = binder ? binder.cols * binder.rows : DEFAULT_BINDER_COLS * DEFAULT_BINDER_ROWS;
+
+  const allSlots = binder?.pages.flatMap((p) => p.slots) ?? [];
+  const totalSlots = allSlots.length;
+  const filledSlots = allSlots.filter(Boolean).length;
+  const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
 
   function resolvePageSlots(page: BinderPage | null): (ResolvedSlotData | null)[] {
     if (!page) return Array<null>(slotCount).fill(null);
@@ -352,7 +358,7 @@ export function BinderPage() {
 
   return (
     <main className="page">
-      <h1 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent)' }}>
+      <h1 data-decode data-caret style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--accent)' }}>
         Binders
       </h1>
 
@@ -483,7 +489,18 @@ export function BinderPage() {
           </div>
 
           {/* Spread view */}
-          <div className="binder-spread-wrapper">
+          <div className="binder-spread-layout">
+            <div className="binder-side-ring">
+              <HoloRing
+                value={filledSlots}
+                max={Math.max(totalSlots, 1)}
+                size={160}
+                sublabel={`${filledSlots}/${totalSlots}`}
+                caption="SLOTS"
+              />
+            </div>
+
+            <div className="binder-spread-wrapper">
             <div className={spreadClass} onAnimationEnd={handleAnimEnd}>
               {/* Left side */}
               {isSpread0 ? (
@@ -517,6 +534,17 @@ export function BinderPage() {
                   : <div className="binder-spread__empty-page" />
                 }
               </div>
+            </div>
+            </div>
+
+            <div className="binder-side-ring">
+              <HoloRing
+                value={ownedSlots}
+                max={Math.max(totalSlots, 1)}
+                size={160}
+                sublabel={`${ownedSlots}/${totalSlots}`}
+                caption="OWNED"
+              />
             </div>
           </div>
         </>

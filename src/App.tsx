@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, Outlet } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Outlet, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CollectionProvider } from './context/CollectionContext';
 import { Navbar } from './components/Navbar/Navbar';
@@ -12,13 +13,18 @@ import { WishlistPage } from './pages/WishlistPage';
 import { BinderPage } from './pages/BinderPage';
 
 function AppLayout() {
+  const location = useLocation();
+  useEffect(() => {
+    window.HoloText?.decodeAll(document);
+  }, [location.pathname]);
+
   return (
-    <>
+    <div className="holo-grid" data-circuit-fixed style={{ minHeight: '100vh' }}>
       <Navbar />
       <GuestBanner />
       <SyncPrompt />
       <Outlet />
-    </>
+    </div>
   );
 }
 

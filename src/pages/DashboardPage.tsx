@@ -6,10 +6,12 @@ import { CONDITION_LABELS, SUPPORTED_CURRENCIES } from '../types';
 import type { CollectionEntry, CurrencyCode } from '../types';
 import { pricesApi } from '../services/api';
 import { getPriceFromCache } from '../utils/priceCache';
+import { HoloRing } from '../components/progress/HoloRing';
+import { ProgressBar } from '../components/progress/ProgressBar';
 import './DashboardPage.css';
 
-const RING_R = 20;
-const RING_CIRC = 2 * Math.PI * RING_R;
+// const RING_R = 20;
+// const RING_CIRC = 2 * Math.PI * RING_R;
 
 function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, number>): string {
   const rate = currency === 'USD' ? 1 : (rates[currency] ?? 1);
@@ -19,33 +21,33 @@ function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, 
   return `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function BinderRing({ pct, ownedSlots, totalSlots }: { pct: number; ownedSlots: number; totalSlots: number }) {
-  const clamped = Math.max(0, Math.min(1, pct));
-  const offset = RING_CIRC * (1 - clamped);
-  const active = clamped > 0;
-  return (
-    <div className="dashboard__binder-ring">
-      <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
-        <circle cx="24" cy="24" r={RING_R} className="dashboard__ring-track" />
-        {active && (
-          <circle
-            cx="24" cy="24" r={RING_R}
-            className="dashboard__ring-fill"
-            strokeDasharray={RING_CIRC}
-            strokeDashoffset={offset}
-            transform="rotate(-90 24 24)"
-          />
-        )}
-        <text x="24" y="26" textAnchor="middle" className="dashboard__ring-pct">
-          {Math.round(clamped * 100)}%
-        </text>
-        <text x="24" y="33.5" textAnchor="middle" className="dashboard__ring-sub">
-          {ownedSlots}/{totalSlots}
-        </text>
-      </svg>
-    </div>
-  );
-}
+// function BinderRing({ pct, ownedSlots, totalSlots }: { pct: number; ownedSlots: number; totalSlots: number }) {
+//   const clamped = Math.max(0, Math.min(1, pct));
+//   const offset = RING_CIRC * (1 - clamped);
+//   const active = clamped > 0;
+//   return (
+//     <div className="dashboard__binder-ring">
+//       <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+//         <circle cx="24" cy="24" r={RING_R} className="dashboard__ring-track" />
+//         {active && (
+//           <circle
+//             cx="24" cy="24" r={RING_R}
+//             className="dashboard__ring-fill"
+//             strokeDasharray={RING_CIRC}
+//             strokeDashoffset={offset}
+//             transform="rotate(-90 24 24)"
+//           />
+//         )}
+//         <text x="24" y="26" textAnchor="middle" className="dashboard__ring-pct">
+//           {Math.round(clamped * 100)}%
+//         </text>
+//         <text x="24" y="33.5" textAnchor="middle" className="dashboard__ring-sub">
+//           {ownedSlots}/{totalSlots}
+//         </text>
+//       </svg>
+//     </div>
+//   );
+// }
 
 export function DashboardPage() {
   const { state, stillNeeded } = useCollection();
@@ -144,7 +146,7 @@ export function DashboardPage() {
 
   return (
     <main className="page dashboard">
-      <h1 className="dashboard__title">Dashboard</h1>
+      <h1 className="dashboard__title" data-decode data-caret>Dashboard</h1>
 
       {/* ── Stats ── */}
       <div className="dashboard__stats">
@@ -184,7 +186,8 @@ export function DashboardPage() {
         <section className="dashboard__section">
           <h2 className="dashboard__section-title">Binders</h2>
           <div className="dashboard__binder-list">
-            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => (
+            {/* {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => ( */}
+            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, binderValue }) => (
               <Link key={binder.id} to="/binder" className="dashboard__binder-row">
                 <div className="dashboard__binder-row__info">
                   <span className="dashboard__binder-row__name">{binder.name}</span>
@@ -204,7 +207,7 @@ export function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <BinderRing pct={pctFull} ownedSlots={filledSlots} totalSlots={totalSlots} />
+                <HoloRing value={filledSlots} max={Math.max(totalSlots, 1)} size={68} sublabel={`${filledSlots}/${totalSlots}`} caption="SLOTS" />
                 <span className="dashboard__binder-row__arrow">›</span>
               </Link>
             ))}
@@ -218,16 +221,13 @@ export function DashboardPage() {
           <h2 className="dashboard__section-title">Wishlist</h2>
 
           <div className="dashboard__wishlist-progress">
-            <div className="dashboard__progress-bar">
-              <div
-                className="dashboard__progress-bar__fill"
-                style={{ width: `${wishlistProgress.pct}%` }}
-              />
-            </div>
-            <span className="dashboard__progress-label">
-              {wishlistProgress.acquired} of {wishlistProgress.desired} copies acquired
-              <span className="dashboard__progress-pct"> · {wishlistProgress.pct}%</span>
-            </span>
+            <ProgressBar
+              value={wishlistProgress.acquired}
+              max={wishlistProgress.desired}
+              label={`${wishlistProgress.acquired} of ${wishlistProgress.desired} copies acquired`}
+              showPct
+              holo
+            />
           </div>
 
           {topNeeded.length > 0 && (
