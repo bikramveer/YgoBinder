@@ -21,33 +21,33 @@ function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, 
   return `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function BinderRing({ pct, ownedSlots, totalSlots }: { pct: number; ownedSlots: number; totalSlots: number }) {
-  const clamped = Math.max(0, Math.min(1, pct));
-  const offset = RING_CIRC * (1 - clamped);
-  const active = clamped > 0;
-  return (
-    <div className="dashboard__binder-ring">
-      <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
-        <circle cx="24" cy="24" r={RING_R} className="dashboard__ring-track" />
-        {active && (
-          <circle
-            cx="24" cy="24" r={RING_R}
-            className="dashboard__ring-fill"
-            strokeDasharray={RING_CIRC}
-            strokeDashoffset={offset}
-            transform="rotate(-90 24 24)"
-          />
-        )}
-        <text x="24" y="26" textAnchor="middle" className="dashboard__ring-pct">
-          {Math.round(clamped * 100)}%
-        </text>
-        <text x="24" y="33.5" textAnchor="middle" className="dashboard__ring-sub">
-          {ownedSlots}/{totalSlots}
-        </text>
-      </svg>
-    </div>
-  );
-}
+// function BinderRing({ pct, ownedSlots, totalSlots }: { pct: number; ownedSlots: number; totalSlots: number }) {
+//   const clamped = Math.max(0, Math.min(1, pct));
+//   const offset = RING_CIRC * (1 - clamped);
+//   const active = clamped > 0;
+//   return (
+//     <div className="dashboard__binder-ring">
+//       <svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true">
+//         <circle cx="24" cy="24" r={RING_R} className="dashboard__ring-track" />
+//         {active && (
+//           <circle
+//             cx="24" cy="24" r={RING_R}
+//             className="dashboard__ring-fill"
+//             strokeDasharray={RING_CIRC}
+//             strokeDashoffset={offset}
+//             transform="rotate(-90 24 24)"
+//           />
+//         )}
+//         <text x="24" y="26" textAnchor="middle" className="dashboard__ring-pct">
+//           {Math.round(clamped * 100)}%
+//         </text>
+//         <text x="24" y="33.5" textAnchor="middle" className="dashboard__ring-sub">
+//           {ownedSlots}/{totalSlots}
+//         </text>
+//       </svg>
+//     </div>
+//   );
+// }
 
 export function DashboardPage() {
   const { state, stillNeeded } = useCollection();
@@ -186,7 +186,8 @@ export function DashboardPage() {
         <section className="dashboard__section">
           <h2 className="dashboard__section-title">Binders</h2>
           <div className="dashboard__binder-list">
-            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => (
+            {/* {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => ( */}
+            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, binderValue }) => (
               <Link key={binder.id} to="/binder" className="dashboard__binder-row">
                 <div className="dashboard__binder-row__info">
                   <span className="dashboard__binder-row__name">{binder.name}</span>
