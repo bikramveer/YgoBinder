@@ -11,7 +11,7 @@ import { ProgressBar } from '../components/progress/ProgressBar';
 import './DashboardPage.css';
 
 const RING_R = 20;
-const RING_CIRC = 2 * Math.PI * RING_R;
+// const RING_CIRC = 2 * Math.PI * RING_R;
 
 function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, number>): string {
   const rate = currency === 'USD' ? 1 : (rates[currency] ?? 1);
