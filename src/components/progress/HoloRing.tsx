@@ -101,19 +101,22 @@ export function HoloRing({
             fill="#fff" filter="url(#hr-glow)" />
         )}
 
-        <text x={C} y={caption ? C - 4 : C + 2} textAnchor="middle" dominantBaseline="middle"
+        <text
+          x={C}
+          y={sublabel && caption ? C - 12 : caption ? C - 4 : sublabel ? C - 2 : C + 2}
+          textAnchor="middle" dominantBaseline="middle"
           style={{ fill: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 30, letterSpacing: '0.02em' }}>
           {label != null ? label : `${rounded}%`}
         </text>
         {sublabel && (
-          <text x={C} y={C + 20} textAnchor="middle"
-            style={{ fill: 'var(--accent-bright)', fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.1em' }}>
+          <text x={C} y={sublabel && caption ? C + 15 : C + 18} textAnchor="middle"
+            style={{ fill: 'var(--text)', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, letterSpacing: '0.08em' }}>
             {sublabel}
           </text>
         )}
         {caption && (
-          <text x={C} y={C + 22} textAnchor="middle"
-            style={{ fill: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 9, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
+          <text x={C} y={sublabel ? C + 30 : C + 16} textAnchor="middle"
+            style={{ fill: 'var(--text)', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 12, letterSpacing: '0.18em', textTransform: 'uppercase' }}>
             {caption}
           </text>
         )}

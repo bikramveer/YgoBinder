@@ -51,6 +51,7 @@ export function CollectionPage() {
   const [viewingCardId,    setViewingCardId]    = useState<number | null>(null);
   const [priceHistory,     setPriceHistory]     = useState<PricePoint[]>([]);
   const [priceLoading,     setPriceLoading]     = useState(false);
+  const [binderWarning,    setBinderWarning]    = useState<{ entry: CollectionEntry; binderNames: string[] } | null>(null);
 
   useEffect(() => {
     if (!selectedEntry || !isLoggedIn) {
@@ -110,10 +111,25 @@ export function CollectionPage() {
 
   const totalCopiesCount = state.collection.reduce((s, e) => s + totalCopies(e), 0);
 
+  function getBinderNamesForEntry(entryId: string): string[] {
+    return state.binders
+      .filter((b) => b.pages.some((p) => p.slots.some((s) => s?.entryId === entryId)))
+      .map((b) => b.name);
+  }
+
+  const doRemoveFromCollection = (entryId: string) => {
+    dispatch({ type: 'REMOVE_FROM_COLLECTION', id: entryId });
+    if (selectedEntry?.id === entryId) setSelectedEntry(null);
+  };
+
   const handleRemove = (e: React.MouseEvent, entry: CollectionEntry) => {
     e.stopPropagation();
-    dispatch({ type: 'REMOVE_FROM_COLLECTION', id: entry.id });
-    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
+    const usedIn = getBinderNamesForEntry(entry.id);
+    if (usedIn.length > 0) {
+      setBinderWarning({ entry, binderNames: usedIn });
+      return;
+    }
+    doRemoveFromCollection(entry.id);
   };
 
   const handleModalQtyChange = (condition: Condition, delta: number) => {
@@ -123,8 +139,12 @@ export function CollectionPage() {
       .filter((c) => c.quantity > 0);
 
     if (newCopies.length === 0) {
-      dispatch({ type: 'REMOVE_FROM_COLLECTION', id: selectedEntry.id });
-      setSelectedEntry(null);
+      const usedIn = getBinderNamesForEntry(selectedEntry.id);
+      if (usedIn.length > 0) {
+        setBinderWarning({ entry: selectedEntry, binderNames: usedIn });
+        return;
+      }
+      doRemoveFromCollection(selectedEntry.id);
     } else {
       dispatch({ type: 'UPDATE_COLLECTION_COPIES', id: selectedEntry.id, copies: newCopies });
       setSelectedEntry({ ...selectedEntry, copies: newCopies });
@@ -317,11 +337,43 @@ export function CollectionPage() {
               <button
                 className="btn btn-danger"
                 onClick={() => {
-                  dispatch({ type: 'REMOVE_FROM_COLLECTION', id: selectedEntry.id });
-                  setSelectedEntry(null);
+                  const usedIn = getBinderNamesForEntry(selectedEntry.id);
+                  if (usedIn.length > 0) {
+                    setBinderWarning({ entry: selectedEntry, binderNames: usedIn });
+                    return;
+                  }
+                  doRemoveFromCollection(selectedEntry.id);
                 }}
               >
                 Remove All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {binderWarning && (
+        <div className="modal-backdrop" onClick={() => setBinderWarning(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Remove from collection?</h2>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              <strong>{binderWarning.entry.cardName}</strong> is placed in{' '}
+              {binderWarning.binderNames.length === 1
+                ? `your "${binderWarning.binderNames[0]}" binder`
+                : `${binderWarning.binderNames.length} binders: ${binderWarning.binderNames.map((n) => `"${n}"`).join(', ')}`
+              }. Removing it from your collection will also clear it from{' '}
+              {binderWarning.binderNames.length === 1 ? 'that binder' : 'those binders'}.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setBinderWarning(null)}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  doRemoveFromCollection(binderWarning.entry.id);
+                  setBinderWarning(null);
+                }}
+              >
+                Remove anyway
               </button>
             </div>
           </div>

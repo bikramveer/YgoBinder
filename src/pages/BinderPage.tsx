@@ -1,16 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useCollection } from '../context/CollectionContext';
+import { useAuth } from '../context/AuthContext';
 import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
 import { CardPickerModal } from '../components/Binder/CardPickerModal';
 import type { TrayItem } from '../components/Binder/CardPickerModal';
 import { BinderCardModal } from '../components/Binder/BinderCardModal';
 import { BinderSizePicker } from '../components/Binder/BinderSizePicker';
 import { BinderCoverPicker } from '../components/Binder/BinderCoverPicker';
-import type { Binder, BinderPage, BinderSlot } from '../types';
-import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS } from '../types';
+import type { Binder, BinderPage, BinderSlot, CurrencyCode } from '../types';
+import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS, SUPPORTED_CURRENCIES } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import { HoloRing } from '../components/progress/HoloRing';
+import { pricesApi } from '../services/api';
+import { getPriceFromCache } from '../utils/priceCache';
 import './BinderPage.css';
+
+function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, number>): string {
+  const rate = currency === 'USD' ? 1 : (rates[currency] ?? 1);
+  const val = usd * rate;
+  const sym = SUPPORTED_CURRENCIES.find((c) => c.code === currency)?.symbol ?? '$';
+  if (currency === 'JPY') return `${sym}${Math.round(val).toLocaleString()}`;
+  return `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+declare global {
+  interface Window { HoloText?: { decode: (el: HTMLElement) => void; decodeAll: (root: Document | HTMLElement) => void }; }
+}
 
 type ModalState =
   | { kind: 'create' }
@@ -26,6 +41,7 @@ type AnimState = 'idle' | 'out' | 'in';
 
 export function BinderPage() {
   const { state, dispatch, createBinder, addBinderPage } = useCollection();
+  const { isLoggedIn, preferredCurrency } = useAuth();
 
   const [selectedBinderId, setSelectedBinderId] = useState<string | null>(null);
   const [displayedSpreadIndex, setDisplayedSpreadIndex] = useState(0);
@@ -40,6 +56,27 @@ export function BinderPage() {
 
   const [dragSource, setDragSource] = useState<{ pageId: string; slotIndex: number } | null>(null);
   const [dragOver, setDragOver] = useState<{ pageId: string; slotIndex: number } | null>(null);
+  const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
+  const [rates, setRates] = useState<Record<string, number>>({});
+  const valueRef = useRef<HTMLSpanElement>(null);
+  const prevFormattedValue = useRef<string>('');
+
+  useEffect(() => {
+    pricesApi.getLatestRates().then(setRates).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      pricesApi.getCollectionValue().then(setPriceMap).catch(() => {});
+    } else {
+      const map = new Map<string, number>();
+      for (const entry of state.collection) {
+        const price = getPriceFromCache(entry.cardId, entry.setCode, entry.rarity);
+        if (price !== null) map.set(entry.id, price);
+      }
+      setPriceMap(map);
+    }
+  }, [isLoggedIn, state.collection]);
 
   const binder: Binder | null =
     state.binders.find((b) => b.id === selectedBinderId) ??
@@ -91,6 +128,38 @@ export function BinderPage() {
   const filledSlots = allSlots.filter(Boolean).length;
   const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
 
+  const binderValue = useMemo(() => {
+    if (!binder || priceMap.size === 0) return 0;
+    let total = 0;
+    for (const slot of allSlots) {
+      if (slot?.source === 'collection') total += priceMap.get(slot.entryId) ?? 0;
+    }
+    return total;
+  }, [binder, allSlots, priceMap]);
+
+  const binderValues = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of state.binders) {
+      let total = 0;
+      for (const slot of b.pages.flatMap((p) => p.slots)) {
+        if (slot?.source === 'collection') total += priceMap.get(slot.entryId) ?? 0;
+      }
+      if (total > 0) m.set(b.id, total);
+    }
+    return m;
+  }, [state.binders, priceMap]);
+
+  const formattedBinderValue = binderValue > 0 ? formatValue(binderValue, preferredCurrency, rates) : '';
+
+  useEffect(() => {
+    const el = valueRef.current;
+    if (!el || !formattedBinderValue || formattedBinderValue === prevFormattedValue.current) return;
+    prevFormattedValue.current = formattedBinderValue;
+    el.removeAttribute('data-decode-text');
+    el.textContent = formattedBinderValue;
+    window.HoloText?.decode(el);
+  }, [formattedBinderValue]);
+
   function resolvePageSlots(page: BinderPage | null): (ResolvedSlotData | null)[] {
     if (!page) return Array<null>(slotCount).fill(null);
     return page.slots.map(resolveSlot);
@@ -137,6 +206,9 @@ export function BinderPage() {
     if (!nameInput.trim()) return;
     const newBinder = await createBinder(nameInput.trim(), newCols, newRows, coverInput ?? undefined);
     if (newBinder) {
+      const pagesToAdd = BINDER_MAX_PAGES - 1; // binder starts with 1 page
+      const slotCount = newCols * newRows;
+      await Promise.all(Array.from({ length: pagesToAdd }, () => addBinderPage(newBinder.id, slotCount)));
       setSelectedBinderId(newBinder.id);
       setDisplayedSpreadIndex(0);
     }
@@ -425,6 +497,11 @@ export function BinderPage() {
                     {ownedSlots > 0 && (
                       <span className="binder-card__owned">{ownedSlots} owned</span>
                     )}
+                    {isLoggedIn && binderValues.get(b.id) && (
+                      <span className="binder-card__value">
+                        {formatValue(binderValues.get(b.id)!, preferredCurrency, rates)}
+                      </span>
+                    )}
                   </div>
                 </button>
               );
@@ -490,62 +567,103 @@ export function BinderPage() {
 
           {/* Spread view */}
           <div className="binder-spread-layout">
-            <div className="binder-side-ring">
+
+            {/* ── Left HUD column ── */}
+            <div className="binder-side-col binder-side-col--left">
+              {isLoggedIn && formattedBinderValue && (
+                <div className="binder-hud-value">
+                  <span ref={valueRef} data-decode className="binder-hud-value__amount">
+                    {formattedBinderValue}
+                  </span>
+                  <span className="binder-hud-value__label">Est. Value</span>
+                </div>
+              )}
               <HoloRing
                 value={filledSlots}
                 max={Math.max(totalSlots, 1)}
                 size={160}
                 sublabel={`${filledSlots}/${totalSlots}`}
-                caption="SLOTS"
+                caption="FILLED"
               />
             </div>
 
+            {/* ── Left connector ── */}
+            {/* <div className="binder-hud-connector" aria-hidden="true">
+              <svg viewBox="0 0 48 100" preserveAspectRatio="none"> */}
+                {/* Value line → binder center */}
+                {/* {isLoggedIn && formattedBinderValue && (
+                  <>
+                    <line x1="0" y1="12" x2="48" y2="50" stroke="var(--accent)" strokeWidth="1" opacity="0.38"/>
+                    <circle cx="0" cy="12" r="2.5" fill="var(--accent)" opacity="0.55"/>
+                  </>
+                )} */}
+                {/* Ring line → binder center */}
+                {/* <line x1="0" y1="82" x2="48" y2="50" stroke="var(--accent)" strokeWidth="1" opacity="0.45"/>
+                <circle cx="0" cy="82" r="2.5" fill="var(--accent)" opacity="0.55"/> */}
+                {/* Binder edge node */}
+                {/* <circle cx="48" cy="50" r="3.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" opacity="0.7"/>
+                <circle cx="48" cy="50" r="1.5" fill="var(--accent)" opacity="0.8"/>
+              </svg>
+            </div> */}
+
+            {/* ── Binder spread ── */}
             <div className="binder-spread-wrapper">
-            <div className={spreadClass} onAnimationEnd={handleAnimEnd}>
-              {/* Left side */}
-              {isSpread0 ? (
-                <div className="binder-spread__page binder-spread__page--left">
-                  <div className="binder-cover">
-                    {binder.coverUrl ? (
-                      <img src={binder.coverUrl} alt="Binder cover" className="binder-cover__img" />
-                    ) : (
-                      <div className="binder-cover__title">
-                        <span className="binder-cover__name">{binder.name}</span>
-                        <span className="binder-cover__sub">{binder.cols}×{binder.rows}</span>
-                      </div>
-                    )}
+              <div className={spreadClass} onAnimationEnd={handleAnimEnd}>
+                {/* Left side */}
+                {isSpread0 ? (
+                  <div className="binder-spread__page binder-spread__page--left">
+                    <div className="binder-cover">
+                      {binder.coverUrl ? (
+                        <img src={binder.coverUrl} alt="Binder cover" className="binder-cover__img" />
+                      ) : (
+                        <div className="binder-cover__title">
+                          <span className="binder-cover__name">{binder.name}</span>
+                          <span className="binder-cover__sub">{binder.cols}×{binder.rows}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="binder-spread__page binder-spread__page--left">
-                  {leftPage
-                    ? <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />
+                ) : (
+                  <div className="binder-spread__page binder-spread__page--left">
+                    {leftPage
+                      ? <BinderPageGrid {...makeGridProps(leftPage, leftPage.id)} />
+                      : <div className="binder-spread__empty-page" />
+                    }
+                  </div>
+                )}
+                <div className="binder-spread__spine" />
+                <div className="binder-spread__page binder-spread__page--right">
+                  {rightPage
+                    ? <BinderPageGrid {...makeGridProps(rightPage, rightPage.id)} />
                     : <div className="binder-spread__empty-page" />
                   }
                 </div>
-              )}
-
-              <div className="binder-spread__spine" />
-
-              {/* Right side — always a card page */}
-              <div className="binder-spread__page binder-spread__page--right">
-                {rightPage
-                  ? <BinderPageGrid {...makeGridProps(rightPage, rightPage.id)} />
-                  : <div className="binder-spread__empty-page" />
-                }
               </div>
             </div>
-            </div>
 
-            <div className="binder-side-ring">
+            {/* ── Right connector ── */}
+            {/* <div className="binder-hud-connector" aria-hidden="true">
+              <svg viewBox="0 0 48 100" preserveAspectRatio="none"> */}
+                {/* Binder edge node */}
+                {/* <circle cx="0" cy="50" r="3.5" fill="none" stroke="var(--accent)" strokeWidth="1.5" opacity="0.7"/>
+                <circle cx="0" cy="50" r="1.5" fill="var(--accent)" opacity="0.8"/> */}
+                {/* Ring line from binder center */}
+                {/* <line x1="0" y1="50" x2="48" y2="22" stroke="var(--accent)" strokeWidth="1" opacity="0.45"/>
+                <circle cx="48" cy="22" r="2.5" fill="var(--accent)" opacity="0.55"/>
+              </svg>
+            </div> */}
+
+            {/* ── Right HUD column ── */}
+            <div className="binder-side-col binder-side-col--right">
               <HoloRing
                 value={ownedSlots}
-                max={Math.max(totalSlots, 1)}
+                max={Math.max(filledSlots, 1)}
                 size={160}
-                sublabel={`${ownedSlots}/${totalSlots}`}
+                sublabel={`${ownedSlots}/${filledSlots}`}
                 caption="OWNED"
               />
             </div>
+
           </div>
         </>
       )}

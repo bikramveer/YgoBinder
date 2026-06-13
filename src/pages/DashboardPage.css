@@ -65,12 +65,12 @@
 }
 
 .dashboard__section-title {
-  font-family: var(--font-mono);
-  font-size: 0.68rem;
-  font-weight: 500;
-  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.10em;
   margin-bottom: 0.6rem;
   padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--border);
@@ -218,7 +218,8 @@
 
 .dashboard__sub-label {
   font-size: 0.72rem;
-  color: var(--text-dim);
+  font-weight: 600;
+  color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 0.4rem;

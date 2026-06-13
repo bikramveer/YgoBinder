@@ -27,8 +27,9 @@
 
 .binder-selection-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 280px));
+  gap: 1rem;
+  justify-content: center;
 }
 
 .binder-card {
@@ -135,10 +136,17 @@
 }
 
 .binder-page-nav__label {
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  flex: 1;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
+  flex: 1;
 }
 
 .binder-page-nav__arrow {
@@ -319,8 +327,8 @@
 /* ── HoloRing side layout ── */
 .binder-spread-layout {
   display: flex;
-  align-items: center;
-  gap: 1.25rem;
+  align-items: stretch;
+  gap: 0;
 }
 
 .binder-spread-layout .binder-spread-wrapper {
@@ -328,25 +336,91 @@
   min-width: 0;
 }
 
-.binder-side-ring {
+/* ── Side column (ring + value display) ── */
+.binder-side-col {
   flex-shrink: 0;
+  width: 170px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  padding: 1.5rem 0;
 }
 
-.binder-side-ring__label {
+.binder-side-col--left {
+  justify-content: flex-end !important;
+}
+
+.binder-side-col--right {
+  justify-content: flex-start;
+}
+
+/* ── Connector strip ── */
+.binder-hud-connector {
+  flex-shrink: 0;
+  width: 48px;
+  align-self: stretch;
+  position: relative;
+  overflow: visible;
+}
+
+.binder-hud-connector svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* ── Binder HUD value display ── */
+.binder-hud-value {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  position: relative;
+}
+
+.binder-hud-value__amount {
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.binder-hud-value__label {
+  font-family: var(--font-mono);
+  font-size: 0.55rem;
+  font-weight: 600;
   text-transform: uppercase;
+  letter-spacing: 0.18em;
   color: var(--text-muted);
 }
 
+/* Value connector line (right edge of value toward connector strip) */
+.binder-hud-value::after {
+  content: '';
+  display: block;
+  width: 20px;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.35;
+  margin-top: 0.3rem;
+}
+
+/* ── Binder card est. value ── */
+.binder-card__value {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 0.1rem;
+}
+
 @media (max-width: 1300px) {
-  .binder-side-ring { display: none !important; }
+  .binder-side-col { display: none !important; }
+  .binder-hud-connector { display: none !important; }
 }
 
 /* ── Responsive ── */
