@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useCollection } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext';
-import { CONDITION_ORDER, CONDITION_LABELS } from '../types';
+import { CONDITION_ORDER, CONDITION_LABELS, SUPPORTED_CURRENCIES } from '../types';
 import type { CollectionEntry, Condition, ConditionCopy } from '../types';
 import { exportCollection } from '../utils/exportCsv';
 import { pricesApi } from '../services/api';
@@ -52,6 +52,9 @@ export function CollectionPage() {
   const [priceHistory,     setPriceHistory]     = useState<PricePoint[]>([]);
   const [priceLoading,     setPriceLoading]     = useState(false);
   const [binderWarning,    setBinderWarning]    = useState<{ entry: CollectionEntry; binderNames: string[] } | null>(null);
+  const [customPriceInput, setCustomPriceInput] = useState('');
+  const [editingPrice,     setEditingPrice]     = useState(false);
+  const [rates,            setRates]            = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!selectedEntry || !isLoggedIn) {
@@ -66,10 +69,25 @@ export function CollectionPage() {
     return () => { cancelled = true; };
   }, [selectedEntry, isLoggedIn]);
 
+  useEffect(() => {
+    if (isLoggedIn) pricesApi.getLatestRates().then(setRates).catch(() => {});
+  }, [isLoggedIn]);
+
+  const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.code === preferredCurrency) ?? SUPPORTED_CURRENCIES[0];
+  const currencyRate = preferredCurrency === 'USD' ? 1 : (rates[preferredCurrency] ?? 1);
+
   const openSelectedEntry = useCallback((entry: CollectionEntry) => {
     setSelectedEntry(entry);
     setPriceHistory([]);
-  }, []);
+    // Pre-populate in the user's preferred currency
+    if (entry.customPriceUsd != null) {
+      const inPreferred = entry.customPriceUsd * currencyRate;
+      setCustomPriceInput(preferredCurrency === 'JPY' ? String(Math.round(inPreferred)) : inPreferred.toFixed(2));
+    } else {
+      setCustomPriceInput('');
+    }
+    setEditingPrice(false);
+  }, [currencyRate, preferredCurrency]);
 
   const rarities = useMemo(
     () => [...new Set(state.collection.map((e) => e.rarity))].sort(),
@@ -130,6 +148,19 @@ export function CollectionPage() {
       return;
     }
     doRemoveFromCollection(entry.id);
+  };
+
+  const handleSaveCustomPrice = () => {
+    if (!selectedEntry) return;
+    const parsed = parseFloat(customPriceInput);
+    let valueUsd: number | null = null;
+    if (customPriceInput.trim() !== '' && !isNaN(parsed) && parsed >= 0) {
+      // Input is in the user's preferred currency — convert to USD for storage
+      valueUsd = parsed / currencyRate;
+    }
+    dispatch({ type: 'SET_CUSTOM_PRICE', id: selectedEntry.id, customPriceUsd: valueUsd, list: 'collection' });
+    setSelectedEntry({ ...selectedEntry, customPriceUsd: valueUsd ?? undefined });
+    setEditingPrice(false);
   };
 
   const handleModalQtyChange = (condition: Condition, delta: number) => {
@@ -325,6 +356,58 @@ export function CollectionPage() {
                 <PriceChart history={priceHistory} currency={preferredCurrency} loading={false} />
               )}
             </div>
+
+            {/* Custom Price — shown when logged in and either no market data or a price is already set */}
+            {isLoggedIn && (!priceLoading && priceHistory.length === 0 || selectedEntry.customPriceUsd != null) && (
+              <div className="entry-modal__section">
+                <p className="entry-modal__section-label">Custom Price</p>
+                {editingPrice ? (
+                  <div className="entry-modal__custom-price-edit">
+                    <span className="entry-modal__custom-price-sym">{currencyInfo.symbol}</span>
+                    <input
+                      className="entry-modal__custom-price-input"
+                      type="number"
+                      min="0"
+                      step={preferredCurrency === 'JPY' ? '1' : '0.01'}
+                      placeholder={preferredCurrency === 'JPY' ? '0' : '0.00'}
+                      value={customPriceInput}
+                      onChange={(e) => setCustomPriceInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveCustomPrice(); if (e.key === 'Escape') setEditingPrice(false); }}
+                      autoFocus
+                    />
+                    <span className="entry-modal__custom-price-sym">{preferredCurrency}</span>
+                    <button className="btn btn-primary entry-modal__custom-price-save" onClick={handleSaveCustomPrice}>Save</button>
+                    <button className="btn btn-ghost" onClick={() => setEditingPrice(false)}>Cancel</button>
+                  </div>
+                ) : selectedEntry.customPriceUsd != null ? (
+                  <div className="entry-modal__custom-price-row">
+                    <span className="entry-modal__custom-price-val">
+                      {currencyInfo.symbol}{(selectedEntry.customPriceUsd * currencyRate).toLocaleString(undefined, preferredCurrency === 'JPY' ? { maximumFractionDigits: 0 } : { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {preferredCurrency}
+                    </span>
+                    <button
+                      className="btn btn-ghost entry-modal__custom-price-link"
+                      onClick={() => {
+                        const inPreferred = (selectedEntry.customPriceUsd ?? 0) * currencyRate;
+                        setCustomPriceInput(preferredCurrency === 'JPY' ? String(Math.round(inPreferred)) : inPreferred.toFixed(2));
+                        setEditingPrice(true);
+                      }}
+                    >Edit</button>
+                    <button
+                      className="btn btn-ghost entry-modal__custom-price-link"
+                      onClick={() => { setCustomPriceInput(''); dispatch({ type: 'SET_CUSTOM_PRICE', id: selectedEntry.id, customPriceUsd: null, list: 'collection' }); setSelectedEntry({ ...selectedEntry, customPriceUsd: undefined }); }}
+                    >Clear</button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn btn-ghost entry-modal__custom-price-link"
+                    onClick={() => { setCustomPriceInput(''); setEditingPrice(true); }}
+                  >
+                    + Set custom price
+                  </button>
+                )}
+                <p className="entry-modal__note">No TCGPlayer price found for this printing. Set a custom price to include it in your Est. Value.</p>
+              </div>
+            )}
 
             <div className="entry-modal__footer">
               <button

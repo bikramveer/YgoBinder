@@ -131,3 +131,7 @@ ALTER TABLE binder_slots ADD COLUMN IF NOT EXISTS source VARCHAR(20) CHECK (sour
 
 -- Binder cover image URL
 ALTER TABLE binders ADD COLUMN IF NOT EXISTS cover_url VARCHAR(500);
+
+-- Manual est. value — nullable, used as fallback when no TCGPlayer market price exists
+ALTER TABLE collection_entries ADD COLUMN IF NOT EXISTS custom_price_usd NUMERIC(10,2);
+ALTER TABLE wishlist_entries ADD COLUMN IF NOT EXISTS custom_price_usd NUMERIC(10,2);
