@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useCollection } from '../../context/CollectionContext';
 import { CONDITION_LABELS, CONDITION_ORDER } from '../../types';
 import type { CollectionEntry, WishlistEntry, Condition } from '../../types';
 import type { ResolvedSlotData } from './BinderSlot';
+import { ArtViewer } from '../ArtViewer/ArtViewer';
 import './BinderCardModal.css';
 
 interface Props {
@@ -12,6 +14,7 @@ interface Props {
 
 export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) {
   const { state, dispatch, stillNeeded } = useCollection();
+  const [artViewerSrc, setArtViewerSrc] = useState<string | null>(null);
 
   const collectionEntry: CollectionEntry | undefined =
     slotData.source === 'collection'
@@ -61,13 +64,15 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
   };
 
   return (
+    <>
     <div className="binder-card-modal">
       <div className="binder-card-modal__header">
         {slotData.cardImageUrl && (
           <img
-            className="binder-card-modal__img"
+            className="binder-card-modal__img binder-card-modal__img--clickable"
             src={slotData.cardImageUrl}
             alt={slotData.cardName}
+            onClick={() => setArtViewerSrc(slotData.cardImageUrl)}
           />
         )}
         <div className="binder-card-modal__info">
@@ -193,5 +198,9 @@ export function BinderCardModal({ slotData, onRemoveFromSlot, onClose }: Props) 
         </button>
       </div>
     </div>
+    {artViewerSrc && (
+      <ArtViewer src={artViewerSrc} alt={slotData.cardName} onClose={() => setArtViewerSrc(null)} />
+    )}
+    </>
   );
 }

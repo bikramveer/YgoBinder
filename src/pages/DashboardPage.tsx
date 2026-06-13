@@ -9,6 +9,7 @@ import { getPriceFromCache } from '../utils/priceCache';
 import { HoloRing } from '../components/progress/HoloRing';
 import { ProgressBar } from '../components/progress/ProgressBar';
 import { EstValueTooltip } from '../components/EstValueTooltip/EstValueTooltip';
+import { ArtViewer } from '../components/ArtViewer/ArtViewer';
 import './DashboardPage.css';
 
 // const RING_R = 20;
@@ -54,6 +55,7 @@ export function DashboardPage() {
   const { state, stillNeeded } = useCollection();
   const { isLoggedIn, preferredCurrency } = useAuth();
   const [selectedRecent, setSelectedRecent] = useState<CollectionEntry | null>(null);
+  const [artViewerSrc, setArtViewerSrc] = useState<string | null>(null);
   const [priceMap, setPriceMap] = useState<Map<string, number>>(new Map());
   const [rates, setRates] = useState<Record<string, number>>({});
 
@@ -167,6 +169,7 @@ export function DashboardPage() {
   const isEmpty = totalUnique === 0 && state.wishlist.length === 0 && state.binders.length === 0;
 
   return (
+    <>
     <main className="page dashboard">
       <h1 className="dashboard__title" data-decode data-caret>Dashboard</h1>
 
@@ -342,9 +345,10 @@ export function DashboardPage() {
             <div className="dashboard__card-modal__header">
               {selectedRecent.cardImageUrl && (
                 <img
-                  className="dashboard__card-modal__img"
+                  className="dashboard__card-modal__img dashboard__card-modal__img--clickable"
                   src={selectedRecent.cardImageUrl}
                   alt={selectedRecent.cardName}
+                  onClick={() => setArtViewerSrc(selectedRecent.cardImageUrl)}
                 />
               )}
               <div className="dashboard__card-modal__info">
@@ -379,5 +383,9 @@ export function DashboardPage() {
         </div>
       )}
     </main>
+    {artViewerSrc && (
+      <ArtViewer src={artViewerSrc} alt={selectedRecent?.cardName ?? 'Card art'} onClose={() => setArtViewerSrc(null)} />
+    )}
+    </>
   );
 }

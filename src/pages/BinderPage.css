@@ -11,7 +11,128 @@
   display: flex;
   gap: 0.4rem;
   flex-shrink: 0;
+  align-items: center;
+  flex-wrap: wrap;
   margin-left: auto;
+}
+
+.binder-selector__sep {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+  flex-shrink: 0;
+  margin: 0 0.1rem;
+}
+
+/* ── Inline binder name ── */
+.binder-name-btn {
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  padding: 0.1rem 0.25rem;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  color: var(--text);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+
+  text-transform: uppercase;
+}
+.binder-name-btn:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.binder-name-input {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--accent);
+  color: var(--text);
+  padding: 0.1rem 0.25rem;
+  outline: none;
+  width: 200px;
+  max-width: 100%;
+}
+
+/* ── Icon-only button ── */
+.btn--icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Bottom controls (nav + stepper together) ── */
+.binder-bottom-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+
+/* ── Page count stepper ── */
+.binder-page-stepper {
+  position: absolute;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (min-width: 1301px) {
+  .binder-page-stepper {
+    right: 170px;
+  }
+}
+
+.binder-page-stepper__btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-light);
+  background: var(--surface-2);
+  color: var(--accent);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s, border-color 0.12s;
+  line-height: 1;
+}
+.binder-page-stepper__btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  border-color: var(--accent);
+}
+.binder-page-stepper__btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.binder-page-stepper__count {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  min-width: 52px;
+  text-align: center;
 }
 
 /* ── Binder selection screen ── */
@@ -133,6 +254,24 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
+}
+
+.binder-page-nav--bottom {
+  margin-bottom: 0;
+  margin-top: 0;
+  justify-content: center;
+  flex-wrap: nowrap;
+}
+
+.binder-page-nav--bottom .binder-page-nav__label {
+  flex: 0 1 auto;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .binder-page-nav__label {

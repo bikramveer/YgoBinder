@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Settings } from 'lucide-react';
 import { useCollection } from '../context/CollectionContext';
 import { useAuth } from '../context/AuthContext';
 import { BinderPageGrid } from '../components/Binder/BinderPageGrid';
@@ -27,9 +28,7 @@ function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, 
 
 type ModalState =
   | { kind: 'create' }
-  | { kind: 'rename'; binderId: string }
-  | { kind: 'cover'; binderId: string }
-  | { kind: 'delete'; binderId: string; binderName: string }
+  | { kind: 'settings'; binderId: string }
   | { kind: 'picker'; pageId: string; slotIndex: number; emptySlotCount: number }
   | { kind: 'card'; pageId: string; slotIndex: number; slotData: ResolvedSlotData }
   | { kind: 'removePage'; pageId: string }
@@ -51,6 +50,9 @@ export function BinderPage() {
   const [newCols, setNewCols] = useState(DEFAULT_BINDER_COLS);
   const [newRows, setNewRows] = useState(DEFAULT_BINDER_ROWS);
   const [coverInput, setCoverInput] = useState<string | null>(null);
+  const [inlineRenaming, setInlineRenaming] = useState(false);
+  const [inlineNameDraft, setInlineNameDraft] = useState('');
+  const [settingsDeleteConfirm, setSettingsDeleteConfirm] = useState(false);
 
   const [dragSource, setDragSource] = useState<{ pageId: string; slotIndex: number } | null>(null);
   const [dragOver, setDragOver] = useState<{ pageId: string; slotIndex: number } | null>(null);
@@ -241,41 +243,39 @@ export function BinderPage() {
     setModal(null);
   };
 
-  const openRename = () => {
+  const openSettings = () => {
     if (!binder) return;
     setNameInput(binder.name);
-    setModal({ kind: 'rename', binderId: binder.id });
-  };
-
-  const confirmRename = () => {
-    if (modal?.kind !== 'rename' || !nameInput.trim()) return;
-    dispatch({ type: 'RENAME_BINDER', binderId: modal.binderId, name: nameInput.trim() });
-    setModal(null);
-  };
-
-  const openCover = () => {
-    if (!binder) return;
     setCoverInput(binder.coverUrl ?? null);
-    setModal({ kind: 'cover', binderId: binder.id });
+    setSettingsDeleteConfirm(false);
+    setModal({ kind: 'settings', binderId: binder.id });
   };
 
-  const confirmCover = () => {
-    if (modal?.kind !== 'cover') return;
+  const confirmSettings = () => {
+    if (modal?.kind !== 'settings' || !binder) return;
+    if (nameInput.trim()) {
+      dispatch({ type: 'RENAME_BINDER', binderId: modal.binderId, name: nameInput.trim() });
+    }
     dispatch({ type: 'SET_BINDER_COVER', binderId: modal.binderId, coverUrl: coverInput });
     setModal(null);
+    setSettingsDeleteConfirm(false);
   };
 
-  const openDelete = () => {
+  const handleSettingsDelete = () => {
     if (!binder) return;
-    setModal({ kind: 'delete', binderId: binder.id, binderName: binder.name });
-  };
-
-  const confirmDelete = () => {
-    if (modal?.kind !== 'delete') return;
-    dispatch({ type: 'DELETE_BINDER', binderId: modal.binderId });
+    dispatch({ type: 'DELETE_BINDER', binderId: binder.id });
     setSelectedBinderId(null);
     setDisplayedSpreadIndex(0);
+    setSettingsDeleteConfirm(false);
     setModal(null);
+  };
+
+  const handleInlineRenameCommit = () => {
+    if (!binder) return;
+    if (inlineNameDraft.trim()) {
+      dispatch({ type: 'RENAME_BINDER', binderId: binder.id, name: inlineNameDraft.trim() });
+    }
+    setInlineRenaming(false);
   };
 
   // ── Page management ────────────────────────────────────────────────────────
@@ -554,50 +554,37 @@ export function BinderPage() {
                 ← All Binders
               </button>
             )}
-            <div className="binder-selector__actions">
-              <button className="btn btn-primary" onClick={openCreate}>+ New</button>
-              <button className="btn btn-ghost" onClick={openRename}>Rename</button>
-              <button className="btn btn-ghost" onClick={openCover}>Cover</button>
-              <button className="btn btn-danger" onClick={openDelete}>Delete</button>
-            </div>
-          </div>
-
-          {/* Navigation bar */}
-          <div className="binder-page-nav">
-            <button
-              className="binder-page-nav__arrow"
-              disabled={activeSpreadIndex === 0 || animState !== 'idle'}
-              onClick={() => goToSpread(activeSpreadIndex - 1)}
-              aria-label="Previous spread"
-            >
-              ‹
-            </button>
-            <span className="binder-page-nav__label">{pageLabel}</span>
-            <button
-              className="binder-page-nav__arrow"
-              disabled={activeSpreadIndex >= maxSpreadIndex || animState !== 'idle'}
-              onClick={() => goToSpread(activeSpreadIndex + 1)}
-              aria-label="Next spread"
-            >
-              ›
-            </button>
-            <button
-              className="btn btn-ghost"
-              onClick={addTwoPages}
-              disabled={binder.pages.length >= BINDER_MAX_PAGES}
-              style={{ fontSize: '0.78rem' }}
-            >
-              + Pages
-            </button>
-            {binder.pages.length > 1 && (
+            {inlineRenaming ? (
+              <input
+                className="binder-name-input"
+                value={inlineNameDraft}
+                onChange={(e) => setInlineNameDraft(e.target.value)}
+                onBlur={handleInlineRenameCommit}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleInlineRenameCommit();
+                  if (e.key === 'Escape') setInlineRenaming(false);
+                }}
+                autoFocus
+              />
+            ) : (
               <button
-                className="btn btn-danger"
-                onClick={removePage}
-                style={{ fontSize: '0.78rem' }}
+                className="binder-name-btn"
+                onClick={() => { setInlineNameDraft(binder.name); setInlineRenaming(true); }}
+                title="Click to rename"
               >
-                − Page
+                {binder.name}
               </button>
             )}
+            <div className="binder-selector__actions">
+              <button
+                className="btn btn-ghost btn--icon"
+                onClick={openSettings}
+                title="Binder settings"
+                aria-label="Binder settings"
+              >
+                <Settings size={15} />
+              </button>
+            </div>
           </div>
 
           {/* Spread view */}
@@ -709,6 +696,50 @@ export function BinderPage() {
             </div>
 
           </div>
+
+          {/* ── Bottom controls (navigation + page stepper) ── */}
+          <div className="binder-bottom-controls">
+            <div className="binder-page-nav binder-page-nav--bottom">
+              <button
+                className="binder-page-nav__arrow"
+                disabled={activeSpreadIndex === 0 || animState !== 'idle'}
+                onClick={() => goToSpread(activeSpreadIndex - 1)}
+                aria-label="Previous spread"
+              >
+                ‹
+              </button>
+              <span className="binder-page-nav__label">{pageLabel}</span>
+              <button
+                className="binder-page-nav__arrow"
+                disabled={activeSpreadIndex >= maxSpreadIndex || animState !== 'idle'}
+                onClick={() => goToSpread(activeSpreadIndex + 1)}
+                aria-label="Next spread"
+              >
+                ›
+              </button>
+            </div>
+            <div className="binder-page-stepper">
+              <button
+                className="binder-page-stepper__btn"
+                onClick={removePage}
+                disabled={binder.pages.length <= 1 || animState !== 'idle'}
+                aria-label="Remove last page"
+              >
+                −
+              </button>
+              <span className="binder-page-stepper__count">
+                {binder.pages.length} {binder.pages.length === 1 ? 'Page' : 'Pages'}
+              </span>
+              <button
+                className="binder-page-stepper__btn"
+                onClick={addTwoPages}
+                disabled={binder.pages.length >= BINDER_MAX_PAGES || animState !== 'idle'}
+                aria-label="Add pages"
+              >
+                +
+              </button>
+            </div>
+          </div>
         </>
       )}
 
@@ -756,52 +787,52 @@ export function BinderPage() {
         </div>
       )}
 
-      {modal?.kind === 'rename' && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '340px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Rename Binder</h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') confirmRename(); }}
-                autoFocus
-              />
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-                <button className="btn btn-primary" onClick={confirmRename} disabled={!nameInput.trim()}>
-                  Rename
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'cover' && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
+      {modal?.kind === 'settings' && binder && (
+        <div className="modal-backdrop" onClick={() => { setModal(null); setSettingsDeleteConfirm(false); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.75rem' }}>Change Cover</h2>
-            <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.75rem' }}>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={confirmCover}>Save</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {modal?.kind === 'delete' && (
-        <div className="modal-backdrop" onClick={() => setModal(null)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '340px' }}>
-            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Delete Binder?</h2>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
-              "{modal.binderName}" and all its page layouts will be deleted. Your Collection and Wishlist entries are not affected.
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={confirmDelete}>Delete</button>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Settings size={14} /> Binder Settings
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                Name
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') confirmSettings(); }}
+                  autoFocus
+                />
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Cover image</span>
+                <BinderCoverPicker selected={coverInput} onChange={setCoverInput} />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button className="btn btn-ghost" onClick={() => { setModal(null); setSettingsDeleteConfirm(false); }}>Cancel</button>
+                <button className="btn btn-primary" onClick={confirmSettings} disabled={!nameInput.trim()}>Save</button>
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                {settingsDeleteConfirm ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Delete "{binder.name}" permanently? Your Collection and Wishlist entries are not affected.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button className="btn btn-ghost" onClick={() => setSettingsDeleteConfirm(false)}>Cancel</button>
+                      <button className="btn btn-danger" onClick={handleSettingsDelete}>Delete</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    className="btn btn-danger"
+                    style={{ width: '100%' }}
+                    onClick={() => setSettingsDeleteConfirm(true)}
+                  >
+                    Delete Binder
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

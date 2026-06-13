@@ -19,6 +19,7 @@
   flex-shrink: 0;
   box-shadow: var(--glow-sm);
 }
+.binder-card-modal__img--clickable { cursor: zoom-in; }
 
 .binder-card-modal__info {
   display: flex;

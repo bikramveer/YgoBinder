@@ -53,10 +53,9 @@ export function SearchPage() {
     setQuickAdd({ card, mode: 'collection' });
   };
 
-  const handleQuickAddSubmit = (set: YGOCardSet, condition: Condition, quantity: number) => {
+  const handleQuickAddSubmit = (set: YGOCardSet, condition: Condition, quantity: number, imageUrl: string) => {
     if (!quickAdd) return;
     const { card, mode } = quickAdd;
-    const imageUrl = card.card_images[0]?.image_url_small ?? '';
     const entryId = `${card.id}-${set.set_code}-${set.set_rarity_code}`;
     if (mode === 'collection') {
       dispatch({

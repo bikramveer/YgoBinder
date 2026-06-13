@@ -8,6 +8,7 @@ import { pricesApi } from '../services/api';
 import type { PricePoint } from '../services/api';
 import { PriceChart } from '../components/CardDetailModal/PriceChart';
 import { CardDetailModal } from '../components/CardDetailModal/CardDetailModal';
+import { ArtViewer } from '../components/ArtViewer/ArtViewer';
 import './WishlistPage.css';
 
 type Sort =
@@ -35,6 +36,7 @@ export function WishlistPage() {
   const [filterCondition, setFilterCondition] = useState<Condition | ''>('');
   const [filterRarity,    setFilterRarity]    = useState('');
   const [selectedEntry,   setSelectedEntry]   = useState<WishlistEntry | null>(null);
+  const [artViewerSrc,    setArtViewerSrc]    = useState<string | null>(null);
   const [acquiring,       setAcquiring]       = useState<AcquireState>(null);
   const [viewingCardId,   setViewingCardId]   = useState<number | null>(null);
   const [priceHistory,    setPriceHistory]    = useState<PricePoint[]>([]);
@@ -135,6 +137,7 @@ export function WishlistPage() {
   };
 
   return (
+    <>
     <main className="page">
       <h1 className="page-title" data-decode data-caret>Wishlist</h1>
 
@@ -267,9 +270,10 @@ export function WishlistPage() {
                   <div className="entry-modal__header">
                     {selectedEntry.cardImageUrl && (
                       <img
-                        className="entry-modal__img"
+                        className="entry-modal__img entry-modal__img--clickable"
                         src={selectedEntry.cardImageUrl}
                         alt={selectedEntry.cardName}
+                        onClick={() => setArtViewerSrc(selectedEntry.cardImageUrl)}
                       />
                     )}
                     <div className="entry-modal__info">
@@ -435,5 +439,9 @@ export function WishlistPage() {
         </div>
       )}
     </main>
+    {artViewerSrc && (
+      <ArtViewer src={artViewerSrc} alt={selectedEntry?.cardName ?? 'Card art'} onClose={() => setArtViewerSrc(null)} />
+    )}
+    </>
   );
 }
