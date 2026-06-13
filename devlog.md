@@ -26,6 +26,7 @@ This file is a running record of everything built, every architectural decision 
 12. [What's Left to Build](#6-whats-left-to-build)
 13. [Key Technical Decisions](#6-key-technical-decisions)
 14. [Learning Resources](#7-learning-resources)
+15. [Binder UX Polish + Est. Value (2026-06-13)](#15-binder-ux-polish--est-value-2026-06-13)
 
 ---
 
@@ -1021,6 +1022,9 @@ This means multi-binder users start on the selection screen. Single-binder users
 | 7 | ✅ Binder backend sync | Done — binders fully synced, non-optimistic create/add-page. |
 | — | ✅ Est. Value on Dashboard | Done — lateral join backend, guest cache fallback, per-binder value |
 | — | ✅ KaibaCorp Holo-Terminal design revamp | Done — circuit board, decode effects, HoloRing, full landing page redesign |
+| — | ✅ Binder UX polish + est. value | Done — ring text fix, HUD offset + connectors, default 20 pages, est. value per binder, deletion warning |
+| — | Card art accuracy in binders | Scoped but not started — set-specific art not resolved in CardPickerModal "All Cards" tab or quick-add |
+| — | Manual est. value (no price data) | Deferred (DB-backed) — needs `custom_price_usd` column on collection/wishlist entries |
 | 8 | Mobile app | React Native, shares the Phase 5 backend. |
 | — | Google OAuth | Deferred — user wants to implement to learn it. |
 | — | Edition display (1st/Unlimited/Limited) | Deferred — no edition-split pricing available from free sources |
@@ -1098,6 +1102,46 @@ Full replacement of the old placeholder landing page:
 **`.holo-decoded` uses `!important`:** The page h1 elements have component-level `color: var(--accent)` from their own classes. Without `!important`, `.holo-decoded`'s `color: var(--text)` would lose to the component class specificity. The intent is for decoded headings to always land on `--text` (white in dark, deep blue in light) — the accent color during scramble is just the animation state.
 
 **`lucide-react` added** for landing page feature icons.
+
+---
+
+## 15. Binder UX Polish + Est. Value (2026-06-13)
+
+A set of targeted UX improvements to the Binder page and related pages, plus est. value surfaced at the binder level.
+
+### Text visibility (#1)
+Dashboard section titles ("Binders", "Wishlist", "Recently Added") were barely readable — they used `var(--font-mono)`, `font-weight: 500`, and `var(--text-muted)`. Changed to `var(--font-display)`, `font-weight: 700`, `color: var(--text)` to match the visual hierarchy of page h1s. Same boost applied to `.dashboard__sub-label`.
+
+### HoloRing text fix (#2)
+The sublabel and caption text in HoloRing were both positioned at `y = C + 20`/`C + 22` — overlapping. Fixed the stacking:
+- `y` of the percentage shifts up dynamically: `C - 12` when both sublabel + caption present, `C - 4` with only caption, `C + 2` with neither.
+- Sublabel: `fontSize 13`, `font-weight: 700`, `color: var(--text)` — now clearly legible.
+- Caption: `color: var(--accent)` to match the ring's accent color rather than invisible muted text.
+- Right ring caption changed from "OWNED" with `value/totalSlots` to `value/filledSlots` — now reads as "of the cards you've placed, how many do you actually own?" which is the meaningful question.
+
+### Binder side panel + connector lines (#2 continued)
+The two HoloRings flanking the binder spread were symmetrically centered, which felt uniform and disconnected from the binder. Redesigned:
+- Both rings are now in `170px` side columns (`binder-side-col`).
+- Left column: `justify-content: space-between` — est. value display sits at the top, ring sits at the bottom (visually lower than binder center).
+- Right column: `justify-content: flex-start` — ring sits near the top (visually higher than binder center).
+- `48px` SVG connector strips (`binder-hud-connector`) sit between each column and the binder spread. The SVGs use `preserveAspectRatio="none"` to fill the full column height, drawing diagonal lines with terminal node dots (filled circle + open circle) from each HUD element to the binder edge. Left connector has two source lines (est. value top, ring bottom) converging at the binder's center; right has one (ring near top) diverging from center.
+- Both columns + connectors hidden at `max-width: 1300px` (same breakpoint as before).
+
+### Binder selection grid (#4)
+Grid was `minmax(150px, 1fr)` — at 2 binders, cards stretched to fill half the viewport each. Changed to `minmax(240px, 280px)` + `justify-content: center` so cards appear at a proper size and center on the page rather than stretching.
+
+### Default 20 pages on creation (#3)
+New binders previously started with 1 page. `confirmCreate` now adds 19 more pages in parallel via `Promise.all` immediately after the binder is created. For guests this is instant (local IDs). For logged-in users, 19 parallel `POST /binders/:id/pages` requests fire simultaneously — small payloads, Railway handles it without issue.
+
+### Est. value per binder (#5)
+`BinderPage` now fetches the same price map as `DashboardPage` (`pricesApi.getCollectionValue()` for logged-in, `getPriceFromCache()` for guests). Two new computations:
+- **`binderValue`**: sum of `priceMap.get(slot.entryId)` for all `source === 'collection'` slots in the current binder.
+- **`binderValues`**: Map of binderId → total value, used on the "All Binders" selection screen.
+
+The value display in the left HUD column uses `data-decode` and re-decodes whenever the formatted string changes — achieved by clearing `data-decode-text` before calling `window.HoloText.decode(el)`, which forces the animation to re-read the current `textContent`. The binder card tile on the selection screen gains a `binder-card__value` line showing the est. value. Both are hidden for guests.
+
+### Deletion warning (#6)
+Before any `REMOVE_FROM_COLLECTION` or `REMOVE_FROM_WISHLIST` dispatch, a `getBinderNamesForEntry(entryId)` check scans `state.binders[].pages[].slots[]` for any slot whose `entryId` matches. If found, a confirmation modal appears: *"[Card] is placed in your "[Binder]" binder. Removing it will also clear it from that binder."* The user must explicitly click "Remove anyway" to proceed. Covers three removal paths in CollectionPage: row button, qty-to-zero in modal, and "Remove All" modal button. Same in WishlistPage row and modal.
 
 ---
 
