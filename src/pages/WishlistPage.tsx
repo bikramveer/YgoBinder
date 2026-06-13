@@ -39,6 +39,7 @@ export function WishlistPage() {
   const [viewingCardId,   setViewingCardId]   = useState<number | null>(null);
   const [priceHistory,    setPriceHistory]    = useState<PricePoint[]>([]);
   const [priceLoading,    setPriceLoading]    = useState(false);
+  const [binderWarning,   setBinderWarning]   = useState<{ entry: WishlistEntry; binderNames: string[] } | null>(null);
 
   useEffect(() => {
     if (!selectedEntry || !isLoggedIn) {
@@ -91,10 +92,25 @@ export function WishlistPage() {
     });
   }, [state.wishlist, search, sort, filterCondition, filterRarity, stillNeeded]);
 
+  function getBinderNamesForEntry(entryId: string): string[] {
+    return state.binders
+      .filter((b) => b.pages.some((p) => p.slots.some((s) => s?.entryId === entryId)))
+      .map((b) => b.name);
+  }
+
+  const doRemoveFromWishlist = (entryId: string) => {
+    dispatch({ type: 'REMOVE_FROM_WISHLIST', id: entryId });
+    if (selectedEntry?.id === entryId) setSelectedEntry(null);
+  };
+
   const handleRemove = (e: React.MouseEvent, entry: WishlistEntry) => {
     e.stopPropagation();
-    dispatch({ type: 'REMOVE_FROM_WISHLIST', id: entry.id });
-    if (selectedEntry?.id === entry.id) setSelectedEntry(null);
+    const usedIn = getBinderNamesForEntry(entry.id);
+    if (usedIn.length > 0) {
+      setBinderWarning({ entry, binderNames: usedIn });
+      return;
+    }
+    doRemoveFromWishlist(entry.id);
   };
 
   const handleAcquireClick = (e: React.MouseEvent, entry: WishlistEntry) => {
@@ -329,8 +345,13 @@ export function WishlistPage() {
                     <button
                       className="btn btn-danger"
                       onClick={() => {
-                        dispatch({ type: 'REMOVE_FROM_WISHLIST', id: selectedEntry.id });
-                        setSelectedEntry(null);
+                        const usedIn = getBinderNamesForEntry(selectedEntry.id);
+                        if (usedIn.length > 0) {
+                          setBinderWarning({ entry: selectedEntry, binderNames: usedIn });
+                          setSelectedEntry(null);
+                          return;
+                        }
+                        doRemoveFromWishlist(selectedEntry.id);
                       }}
                     >
                       Remove
@@ -381,6 +402,34 @@ export function WishlistPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button className="btn btn-ghost" onClick={() => setAcquiring(null)}>Cancel</button>
               <button className="btn btn-success" onClick={confirmAcquire}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {binderWarning && (
+        <div className="modal-backdrop" onClick={() => setBinderWarning(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: '1.25rem', maxWidth: '400px' }}>
+            <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>Remove from wishlist?</h2>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+              <strong>{binderWarning.entry.cardName}</strong> is placed in{' '}
+              {binderWarning.binderNames.length === 1
+                ? `your "${binderWarning.binderNames[0]}" binder`
+                : `${binderWarning.binderNames.length} binders: ${binderWarning.binderNames.map((n) => `"${n}"`).join(', ')}`
+              }. Removing it from your wishlist will also clear it from{' '}
+              {binderWarning.binderNames.length === 1 ? 'that binder' : 'those binders'}.
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost" onClick={() => setBinderWarning(null)}>Cancel</button>
+              <button
+                className="btn btn-danger"
+                onClick={() => {
+                  doRemoveFromWishlist(binderWarning.entry.id);
+                  setBinderWarning(null);
+                }}
+              >
+                Remove anyway
+              </button>
             </div>
           </div>
         </div>

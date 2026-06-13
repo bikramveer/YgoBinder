@@ -1020,10 +1020,84 @@ This means multi-binder users start on the selection screen. Single-binder users
 | 6 | ✅ Price history | Done — daily snapshots, exchange rates; chart now in Collection/Wishlist modals |
 | 7 | ✅ Binder backend sync | Done — binders fully synced, non-optimistic create/add-page. |
 | — | ✅ Est. Value on Dashboard | Done — lateral join backend, guest cache fallback, per-binder value |
+| — | ✅ KaibaCorp Holo-Terminal design revamp | Done — circuit board, decode effects, HoloRing, full landing page redesign |
 | 8 | Mobile app | React Native, shares the Phase 5 backend. |
 | — | Google OAuth | Deferred — user wants to implement to learn it. |
 | — | Edition display (1st/Unlimited/Limited) | Deferred — no edition-split pricing available from free sources |
 | — | Quarter Century Stampede printings | Deferred — YGOPRODeck API limitation (one entry per set_code+rarity). |
+
+---
+
+## 13. KaibaCorp Holo-Terminal Design Revamp (2026-06-12)
+
+A complete visual overhaul of the app — "KaibaCorp Holo-Terminal" light theme and "Shadow Hologram" dark theme. All effects are implemented as vanilla JS IIFE modules (side-effect imports) so they work outside React's lifecycle without being tied to any component.
+
+### New effect files
+
+**`src/effects/holo-circuit.js`** — Procedural circuit-board canvas that auto-mounts on any `.holo-grid` element via a `MutationObserver`. Generates random traces on a 38px grid pitch, then animates traveling data pulses along the traces via `requestAnimationFrame`. Key decisions:
+
+- **`data-circuit-fixed` attribute:** The AppLayout wrapper gets this flag, making its canvas layer `position: fixed` instead of `position: absolute`. This means the same circuit trace set persists across page navigation — no flash or rebuild as you switch tabs. Other sections (landing page hero, CTA band) still use `position: absolute` and are contained within their section.
+- **`ResizeObserver`** (non-fixed only): Detects when a contained `.holo-grid` element grows (e.g. cards loading on SearchPage) and rebuilds the canvas at the new size. Without this, the canvas was built at initial element height then CSS-stretched to the new height — making traces appear zoomed in.
+- **DPR-aware:** Canvas pixel dimensions are `width * devicePixelRatio` (capped at 2×). The transform matrix is set to DPR so all drawing coordinates stay in logical pixels.
+
+**`src/effects/holo-text.js`** — Scramble-decode animation for `[data-decode]` elements. On mount and route change, each matching element randomises through a charset before settling on the real text. After animation: removes `.holo-decoding`, adds `.holo-decoded` (permanent glow via CSS). `[data-caret]` adds a blinking cursor after the last character. Also handles `.holo-input` focus tracking — lights up the `>` prompt and activates the scanning beam underline.
+
+**`src/effects/holo-transition.js`** — Full-screen veil cross-fade for the theme toggle. When the user switches themes, a `position: fixed; inset: 0` overlay fades in to the destination background colour, the theme is applied, then the overlay fades out — masking the instant CSS variable swap.
+
+**`src/effects/holo.css`** — All utility classes consumed by the above:
+- `.holo-grid` / `.holo-grid--floor` — circuit backdrop (CSS fallback; canvas replaces it when JS runs)
+- `.holo-scanlines` — CRT scanline overlay via `::after` + `repeating-linear-gradient`
+- `.holo-frame` — HUD corner brackets via `::before`/`::after`
+- `.holo-input` — terminal input widget with `>` prompt and scanning beam
+- `.holo-decoded` — `color: var(--text) !important` + glow; applied permanently after decode
+- `.holo-ring__*` — rotation animation classes for HoloRing
+- `.ygo-progress` / `.ygo-progress__fill--holo` — shimmer progress bar
+
+### New components
+
+**`HoloRing`** (`src/components/progress/HoloRing.tsx`) — SVG HUD ring with counter-rotating bracket arcs, tick bezel, dashed counter-rotating outer ring, and a glowing progress arc. Props: `value`, `max`, `size`, `label`, `sublabel`, `caption`, `spinning`. Used on the Dashboard binder rows and BinderPage stats.
+
+**`ProgressBar`** (`src/components/progress/ProgressBar.tsx`) — Horizontal progress bar with optional `holo` shimmer variant. The `holo` prop adds a traveling shimmer highlight via `::after` animation. Used on Dashboard wishlist progress.
+
+### Changes to existing pages
+
+| Page | Change |
+|---|---|
+| All pages | `h1` elements get `data-decode data-caret` — boot-up scramble on every route visit |
+| Dashboard | `BinderRing` SVG → `HoloRing` component; custom wishlist bar divs → `<ProgressBar holo>` |
+| Search | "Search & Browse" h1 added; input wrapped in `.holo-input` terminal widget |
+| Collection | Input wrapped in `.holo-input`; row border changed from bottom-only to full border + hover glow |
+| Wishlist | Same input + row treatment as Collection |
+| BinderPage | Two flanking `HoloRing` stats (Slots filled, Slots owned) hidden below 1300px |
+| AppLayout | Wrapped in `<div class="holo-grid" data-circuit-fixed>` |
+
+### Landing page redesign
+
+Full replacement of the old placeholder landing page:
+
+**Hero** — `.holo-grid.holo-scanlines` section with circuit backdrop. H1 first line uses `data-decode data-caret`; second line uses `color: var(--accent)` + `.holo-glow-text` (accent glow, no decode).
+
+**Stat ticker** — Three `CountUp` components that animate from 0 to target via `IntersectionObserver` + cubic-ease `requestAnimationFrame` loop. Triggers once when scrolled into view.
+
+**Split light/dark preview** — A `position: relative; aspect-ratio: 16/10` container with two `clip-path: polygon()` panels (57%/43% diagonal seam). Each panel has `data-theme="light"` or `data-theme="dark"`, scoped via the `:root, [data-theme="light"]` selector added to `index.css`. The seam has a traveling dot (`animation: lpSeamDot`) and an SVG accent line.
+
+**Live dashboard inside the preview** — Instead of a hand-coded mock, both panels render a `DashPreview` component that uses the actual `HoloRing` and `ProgressBar` with hardcoded demo data. The HoloRing bracket arcs spin, the progress bar shimmer runs — live animations, same CSS classes as the real dashboard. Scale is computed by a `ResizeObserver` on the `.lp-preview` container that sets `--preview-scale` as a CSS variable; `dashpv-scale` applies `transform: scale(var(--preview-scale))` with `transform-origin: top left`. Design width is 1100px so the scale ≈ 0.9 at full 1000px preview width.
+
+**Features grid** — 4 cards using Lucide React icons (`Search`, `Layers`, `BookOpen`, `TrendingUp`) with `.holo-frame` corner brackets.
+
+**CTA band** — `.holo-grid.holo-grid--floor` canvas backdrop with `data-decode` heading.
+
+**Logo emblem** — Three stacked SVG card silhouettes with "Y" and "B" Orbitron letterforms, used in both the nav and footer.
+
+### Key technical decisions
+
+**Fixed circuit for AppLayout:** The circuit canvas on the AppLayout wrapper is `position: fixed` — it covers the viewport, never rebuilds on navigation, and keeps the same random traces as you move between pages. This was the root cause of the "harsh background flash" on tab switch — previously the canvas was `position: absolute` and rebuilt whenever the `.holo-grid` div resized (which happened every time new content loaded).
+
+**`[data-theme="light"]` on `:root`:** The `:root` selector was extended to `:root, [data-theme="light"]`. This allows the light panel in the split preview (which has `data-theme="light"` on it as a child inside a `data-theme="dark"` document) to correctly receive light tokens via CSS custom property scoping.
+
+**`.holo-decoded` uses `!important`:** The page h1 elements have component-level `color: var(--accent)` from their own classes. Without `!important`, `.holo-decoded`'s `color: var(--text)` would lose to the component class specificity. The intent is for decoded headings to always land on `--text` (white in dark, deep blue in light) — the accent color during scramble is just the animation state.
+
+**`lucide-react` added** for landing page feature icons.
 
 ---
 
