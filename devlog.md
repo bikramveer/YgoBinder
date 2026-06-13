@@ -1145,6 +1145,135 @@ Before any `REMOVE_FROM_COLLECTION` or `REMOVE_FROM_WISHLIST` dispatch, a `getBi
 
 ---
 
+## 16. UX Polish — Art Viewer, Modal Scroll Fix, Binder Toolbar Redesign (2026-06-13)
+
+### Set-specific artwork in quick-add (`AddToListForm`)
+
+The Search page "quick add" form (clicking the `+` button on a card row) previously showed no card art. Added a hero section matching the `CardPickerModal` configure panel:
+
+- `getYugipediaData(card.name)` fires on mount via a guarded `useEffect` (ref-checked so stale responses from fast navigation are discarded).
+- `resolveImage()` uses `selectedSet.set_code.split('-')[0]` to get the set prefix, looks up `artMap.get(setPrefix)` for the art index, then calls `yugipediaImageUrl()` — same pattern as the binder picker.
+- Hero shows the card image (loading spinner at `opacity: 0.35` while fetching), card name, and resolved rarity.
+- `onSubmit` now passes `imageUrl` as a 4th argument so the saved entry uses the correct set-specific art, not always the generic `card_images[0]` URL.
+- Clicking the hero image opens the new ArtViewer.
+
+---
+
+### `CardDetailModal` scroll fix
+
+**Problem:** Scrolling inside the card detail modal caused the entire hero section (card image, name, type, stats) to scroll up and eventually disappear off-screen. The close button also scrolled off-screen.
+
+**Root cause:** The `.modal` class in `index.css` has `overflow-y: auto` — the whole modal was one scrollable container.
+
+**Fix — flex column with isolated scroll zone:**
+```css
+.card-detail-modal { overflow: hidden; display: flex; flex-direction: column; }
+.card-detail        { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.card-detail__header { flex-shrink: 0; }           /* hero — never scrolls */
+.card-detail__body   { flex: 1; overflow-y: auto; min-height: 0; }  /* only this scrolls */
+```
+
+The `overflow: hidden` on `.card-detail-modal` overrides the `.modal` base class, redirecting all scroll to `.card-detail__body` only. The close button is `position: absolute` on `.card-detail-modal` (outside the flex flow) so it never moves.
+
+**Body scroll lock:** `document.body.style.overflow = 'hidden'` on mount, restored on unmount — prevents the search results behind the modal from scrolling while the modal is open.
+
+---
+
+### ArtViewer — full-screen card art lightbox (new component)
+
+`src/components/ArtViewer/ArtViewer.tsx` + `ArtViewer.css`. Clicking a card image in any modal expands it to a full-screen overlay. Clicking the backdrop or pressing Escape closes it.
+
+```tsx
+export function ArtViewer({ src, alt, onClose }: Props) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+  return (
+    <div className="art-viewer" onClick={onClose}>
+      <img className="art-viewer__img" src={src} alt={alt} onClick={(e) => e.stopPropagation()} />
+    </div>
+  );
+}
+```
+
+`position: fixed; z-index: 2000` places it above all modals. The image gets `cursor: default; stopPropagation` so clicking the art itself doesn't close the viewer — only clicking the backdrop does.
+
+**Fragment pattern required:** Each component that renders `<ArtViewer>` conditionally alongside its root element must wrap both in a `<>...</>` Fragment. Placing a second sibling after the root `return (...)` element without a Fragment causes a "Unexpected token, expected ','" TypeScript error.
+
+**Wired into:**
+- Dashboard "Recently Added" modal
+- Search `CardDetailModal` (hero image)
+- Search quick-add `AddToListForm` (hero image)
+- Collection entry modal
+- Wishlist entry modal
+- Binder `BinderCardModal`
+
+---
+
+### `CardPickerModal` — show fully-used cards
+
+**Before:** Cards where all copies were already placed in binders were filtered out of the Owned/Wishlist tabs entirely — the tabs looked empty even when the user had relevant cards.
+
+**After:** All matching cards are shown regardless of availability. Cards with zero remaining copies are dimmed (`opacity: 0.42; cursor: not-allowed`) with a label showing which binder(s) they're in.
+
+**Binder name tracking:** Extended `usageMap` from `Map<entryId, number>` (available count) to also build `collBinders: Map<entryId, Set<string>>` and `togBinders: Map<entryId, Set<string>>`. Using a `Set` prevents duplicate binder names when a card appears multiple times in the same binder.
+
+```tsx
+if (!collBinders.has(slot.entryId)) collBinders.set(slot.entryId, new Set());
+collBinders.get(slot.entryId)!.add(binder.name);
+```
+
+The "used" label joins all binder names with `, ` and truncates via `text-overflow: ellipsis`. The full list appears in a native `title` tooltip on hover.
+
+---
+
+### Binder page — navigation & toolbar redesign
+
+**Problem:** The old toolbar had `+ Pages`, `– Page`, `Rename`, `Cover`, `Delete`, and `+ New` all in one row — noisy, and `+ New` (a library action) didn't belong in a binder-editing context.
+
+**Changes shipped:**
+
+1. **`+ New` removed** from the binder view. It stays on the All Binders selection screen where it belongs.
+
+2. **Inline rename** — the binder name in the top bar is now a clickable `<button>` with display-font styling. Clicking it replaces the name with an `<input>` pre-filled with the current name. Enter/blur saves, Escape cancels without saving.
+
+3. **Gear icon (⚙) settings modal** — replaces Rename, Cover, and Delete buttons. Opens a single modal with:
+   - Name field (also saved on Enter)
+   - Cover picker (`BinderCoverPicker` component)
+   - Save button (commits both name + cover in one action)
+   - Danger zone at the bottom: "Delete Binder" button expands inline to a `Delete "{name}" permanently?` confirmation — no separate modal, two clicks required.
+
+4. **`‹ Pages 2–3 of 5 ›` nav moved to below the binder spread.** Page navigation is now grouped with page management.
+
+5. **`– [N Pages] +` stepper** lives next to the nav below the binder. Replaces the `+ Pages` / `– Page` two-button pattern. Both stepper buttons are disabled during flip animation (`animState !== 'idle'`).
+
+6. **Stepper positioning:** The stepper is `position: absolute; right: 0` inside the `.binder-bottom-controls` container (keeping the nav truly centered). At ≥1301px where the 170px side columns appear, the stepper shifts to `right: 170px` to stay flush with the binder's actual right edge rather than the side column's right edge.
+
+7. **Mobile nav fix:** The old `.binder-page-nav__label` had `flex: 1` (designed for the top-bar section divider role), which caused the `›` arrow to wrap to a second row at narrow widths. Fixed with `flex-wrap: nowrap` on `.binder-page-nav--bottom` and `flex: 0 1 auto; border-bottom: none; margin-bottom: 0` on the label in the bottom context.
+
+---
+
+### Planned: Freemium usage limits (not yet implemented)
+
+Decided on three tiers with the following caps:
+
+| | Guest | Free (logged in) | Paid |
+|---|---|---|---|
+| Collection entries | 30 | 250 | Unlimited |
+| Wishlist entries | 15 | 150 | Unlimited |
+| Binders | 2 | 4 | Unlimited |
+| Pages per binder | 5 | 20 | 100 |
+
+**Why 100 pages (not unlimited) for paid:** Pages are stored individually, so storage isn't the concern — but loading a binder with 500+ pages would fetch a large dataset in one query. 100 pages = 50 spreads, covering even the most dedicated collector.
+
+**Why guests don't cost storage:** Guests use localStorage only — no Railway DB rows are written. Guest limits are about motivating sign-up, not protecting infrastructure.
+
+**Implementation plan:** Frontend-only checks first (fast to ship, no incentive to exploit a binder app). Backend enforcement (check before INSERT) can be added when paid tier is ready.
+
+---
+
 ## 6. Key Technical Decisions
 
 | Decision | Choice | Why |
