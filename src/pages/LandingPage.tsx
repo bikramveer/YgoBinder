@@ -213,11 +213,11 @@ export function LandingPage() {
       {/* ── Hero ── */}
       <section className="lp-hero holo-grid holo-scanlines">
         <h1 className="lp-title">
-          <span data-decode data-caret>Your Yu-Gi-Oh</span>
-          <span className="lp-title-accent holo-glow-text">collection, organized.</span>
+          <span data-decode data-caret>Your Yu-Gi-Oh Collection,</span>
+          <span data-decode className="lp-title-accent holo-glow-text">Organized At Last.</span>
         </h1>
         <p className="lp-subtitle">
-          Search cards, track your collection, build virtual binders, and follow market prices — all in one place.
+          Search every card, track your collection, build virtual binders, and follow market prices — all in one holographic command deck.
         </p>
         <div className="lp-cta-group">
           <button className="btn btn-primary lp-cta-btn" onClick={() => setAuthOpen(true)}>
@@ -264,7 +264,7 @@ export function LandingPage() {
 
       {/* ── Features ── */}
       <section className="lp-features">
-        <h2 className="lp-section-title" data-decode>Everything you need</h2>
+        <h2 className="lp-section-title" data-decode>One deck for the whole collection</h2>
         <div className="lp-grid">
           {FEATURES.map(({ Icon, title, desc }) => (
             <div key={title} className="lp-feature holo-frame">
@@ -279,7 +279,7 @@ export function LandingPage() {
       {/* ── CTA band ── */}
       <section className="lp-band holo-grid holo-grid--floor">
         <h2 className="lp-band__title" data-decode>Ready to organize your collection?</h2>
-        <p className="lp-band__sub">Free to use. No credit card required.</p>
+        <p className="lp-band__sub">Free to start. Your binder syncs the moment you sign in.</p>
         <div className="lp-cta-group">
           <button className="btn btn-primary lp-cta-btn" onClick={() => setAuthOpen(true)}>
             Create your account →
@@ -292,8 +292,9 @@ export function LandingPage() {
 
       {/* ── Footer ── */}
       <footer className="landing__footer">
-        <LogoEmblem/>
-        <span>© {new Date().getFullYear()} YgoBindr</span>
+          {/* <LogoEmblem/> */}
+          <span>© {new Date().getFullYear()} YgoBindr. All rights reserved.</span>
+          <span>Not affiliated with Konami. Card data & prices via YGOPRODeck / TCGplayer.</span>
       </footer>
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)}/>}
