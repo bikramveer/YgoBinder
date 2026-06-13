@@ -8,6 +8,7 @@ import { pricesApi } from '../services/api';
 import type { PricePoint } from '../services/api';
 import { PriceChart } from '../components/CardDetailModal/PriceChart';
 import { CardDetailModal } from '../components/CardDetailModal/CardDetailModal';
+import { ArtViewer } from '../components/ArtViewer/ArtViewer';
 import './CollectionPage.css';
 
 type Sort =
@@ -48,6 +49,7 @@ export function CollectionPage() {
   const [filterCondition,  setFilterCondition]  = useState<Condition | ''>('');
   const [filterRarity,     setFilterRarity]     = useState('');
   const [selectedEntry,    setSelectedEntry]    = useState<CollectionEntry | null>(null);
+  const [artViewerSrc,     setArtViewerSrc]     = useState<string | null>(null);
   const [viewingCardId,    setViewingCardId]    = useState<number | null>(null);
   const [priceHistory,     setPriceHistory]     = useState<PricePoint[]>([]);
   const [priceLoading,     setPriceLoading]     = useState(false);
@@ -183,6 +185,7 @@ export function CollectionPage() {
   };
 
   return (
+    <>
     <main className="page">
       <h1 className="page-title" data-decode data-caret>My Collection</h1>
 
@@ -305,9 +308,10 @@ export function CollectionPage() {
             <div className="entry-modal__header">
               {selectedEntry.cardImageUrl && (
                 <img
-                  className="entry-modal__img"
+                  className="entry-modal__img entry-modal__img--clickable"
                   src={selectedEntry.cardImageUrl}
                   alt={selectedEntry.cardName}
+                  onClick={() => setArtViewerSrc(selectedEntry.cardImageUrl)}
                 />
               )}
               <div className="entry-modal__info">
@@ -463,5 +467,9 @@ export function CollectionPage() {
         </div>
       )}
     </main>
+    {artViewerSrc && (
+      <ArtViewer src={artViewerSrc} alt={selectedEntry?.cardName ?? 'Card art'} onClose={() => setArtViewerSrc(null)} />
+    )}
+    </>
   );
 }

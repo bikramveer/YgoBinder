@@ -8,6 +8,7 @@ import type { YGOCard, YGOCardSet, Condition } from '../../types';
 import { pricesApi } from '../../services/api';
 import { getYugipediaData, yugipediaImageUrl } from '../../services/yugipediaArtwork';
 import type { GalleryEntry } from '../../services/yugipediaArtwork';
+import { ArtViewer } from '../ArtViewer/ArtViewer';
 import './CardDetailModal.css';
 
 interface Props {
@@ -36,6 +37,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
 
   const [selectedImageIdx, setSelectedImageIdx] = useState(0);
   const [headerArtUrl, setHeaderArtUrl] = useState<string | null>(null);
+  const [artViewerSrc, setArtViewerSrc] = useState<string | null>(null);
   const [setFilter, setSetFilter] = useState('');
   const [addState, setAddState] = useState<AddState | null>(null);
   const [setArtworkMap, setSetArtworkMap] = useState<Map<string, number>>(new Map());
@@ -72,6 +74,11 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
       setGalleryMap(gm);
     });
   }, [card?.name, initialCard?.name]);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -205,6 +212,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
   const mainArtUrl = addState?.artworkUrl || headerArtUrl || getArtworkUrl(selectedImageIdx, true);
 
   return (
+    <>
     <div className="modal-backdrop" onClick={addState ? undefined : onClose}>
       <div
         className="modal card-detail-modal"
@@ -226,7 +234,12 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                 <div className="card-detail__image-col">
                   {mainArtUrl ? (
                     <div className="card-detail__image">
-                      <img src={mainArtUrl} alt={headerCard.name} />
+                      <img
+                        src={mainArtUrl}
+                        alt={headerCard.name}
+                        className="card-detail__image-clickable"
+                        onClick={() => setArtViewerSrc(mainArtUrl)}
+                      />
                     </div>
                   ) : (
                     <div className="card-detail__image-placeholder">No image</div>
@@ -271,6 +284,7 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                 </div>
               </div>
 
+              <div className="card-detail__body">
               {/* ── Inline add form ── */}
               {addState && (
                 <div className="card-detail__add-form">
@@ -446,10 +460,19 @@ export function CardDetailModal({ cardId, initialCard, onClose }: Props) {
                   )}
                 </>
               )}
+              </div>{/* card-detail__body */}
             </>
           )}
         </div>
       </div>
     </div>
+    {artViewerSrc && (
+      <ArtViewer
+        src={artViewerSrc}
+        alt={headerCard?.name ?? 'Card art'}
+        onClose={() => setArtViewerSrc(null)}
+      />
+    )}
+    </>
   );
 }

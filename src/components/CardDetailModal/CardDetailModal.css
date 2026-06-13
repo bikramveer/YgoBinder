@@ -1,18 +1,19 @@
 .card-detail {
   padding: 1.25rem;
+  padding-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
 
 .card-detail__header {
   display: flex;
   gap: 1rem;
-  margin-bottom: 1.25rem;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--surface);
   border-bottom: 1px solid var(--border);
   padding-bottom: 1rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .card-detail__image-col {
@@ -29,6 +30,7 @@
   box-shadow: var(--glow-sm);
 }
 .card-detail__image img { width: 100%; display: block; }
+.card-detail__image-clickable { cursor: zoom-in; }
 .card-detail__image-placeholder {
   width: 120px;
   height: 175px;
@@ -189,6 +191,17 @@
 /* Modal positioning */
 .card-detail-modal {
   position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-detail__body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding-top: 0.5rem;
+  padding-bottom: 1.25rem;
 }
 
 /* ── Mini add form (shown instead of set table) ─────────────────────────── */

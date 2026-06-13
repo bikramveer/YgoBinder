@@ -258,6 +258,7 @@ input:focus, select:focus, textarea:focus {
   object-fit: contain;
   align-self: flex-start;
 }
+.entry-modal__img--clickable { cursor: zoom-in; }
 
 .entry-modal__info {
   flex: 1;

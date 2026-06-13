@@ -359,6 +359,7 @@
   object-fit: contain;
   align-self: flex-start;
 }
+.dashboard__card-modal__img--clickable { cursor: zoom-in; }
 
 .dashboard__card-modal__info {
   flex: 1;
