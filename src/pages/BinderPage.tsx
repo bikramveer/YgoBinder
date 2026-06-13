@@ -23,9 +23,6 @@ function formatValue(usd: number, currency: CurrencyCode, rates: Record<string, 
   return `${sym}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-declare global {
-  interface Window { HoloText?: { decode: (el: HTMLElement) => void; decodeAll: (root: Document | HTMLElement) => void }; }
-}
 
 type ModalState =
   | { kind: 'create' }
