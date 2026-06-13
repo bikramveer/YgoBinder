@@ -83,6 +83,7 @@ export interface CollectionEntry {
   rarity: string;
   copies: ConditionCopy[]; // sorted best→worst condition
   notes?: string;
+  customPriceUsd?: number; // manually set fallback price (used when no TCGPlayer data)
   dateAdded: string; // ISO 8601
 }
 
@@ -98,6 +99,7 @@ export interface WishlistEntry {
   minCondition: Condition;
   desiredQuantity: number;
   notes?: string;
+  customPriceUsd?: number; // manually set fallback price (used when no TCGPlayer data)
   dateAdded: string; // ISO 8601
 }
 

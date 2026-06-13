@@ -5,6 +5,7 @@ import { loadState, saveState } from '../utils/storage';
 import { useAuth } from './AuthContext';
 import { collectionApi, wishlistApi, syncApi, binderApi } from '../services/api';
 
+
 // ── Actions ───────────────────────────────────────────────────────────────────
 
 type Action =
@@ -26,7 +27,8 @@ type Action =
   | { type: 'ADD_BINDER_PAGE'; binderId: string; page: BinderPage }
   | { type: 'REMOVE_BINDER_PAGE'; binderId: string; pageId: string }
   | { type: 'ASSIGN_BINDER_SLOT'; binderId: string; pageId: string; slotIndex: number; entry: BinderSlot | null }
-  | { type: 'MOVE_BINDER_SLOT'; binderId: string; fromPageId: string; fromSlot: number; toPageId: string; toSlot: number };
+  | { type: 'MOVE_BINDER_SLOT'; binderId: string; fromPageId: string; fromSlot: number; toPageId: string; toSlot: number }
+  | { type: 'SET_CUSTOM_PRICE'; id: string; customPriceUsd: number | null; list: 'collection' | 'wishlist' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -267,6 +269,26 @@ function reducer(state: AppState, action: Action): AppState {
         }),
       };
 
+    case 'SET_CUSTOM_PRICE':
+      if (action.list === 'collection') {
+        return {
+          ...state,
+          collection: state.collection.map((e) =>
+            e.id === action.id
+              ? { ...e, customPriceUsd: action.customPriceUsd ?? undefined }
+              : e,
+          ),
+        };
+      }
+      return {
+        ...state,
+        wishlist: state.wishlist.map((e) =>
+          e.id === action.id
+            ? { ...e, customPriceUsd: action.customPriceUsd ?? undefined }
+            : e,
+        ),
+      };
+
     default:
       return state;
   }
@@ -424,6 +446,14 @@ async function syncToApi(action: Action, prevState: AppState): Promise<void> {
       ]);
       break;
     }
+
+    case 'SET_CUSTOM_PRICE':
+      if (action.list === 'collection') {
+        await collectionApi.setCustomPrice(action.id, action.customPriceUsd);
+      } else {
+        await wishlistApi.setCustomPrice(action.id, action.customPriceUsd);
+      }
+      break;
 
     default:
       break;

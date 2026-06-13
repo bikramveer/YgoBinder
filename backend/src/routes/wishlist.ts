@@ -34,6 +34,11 @@ const AcquireSchema = z.object({
   condition: ConditionEnum,
 });
 
+const CustomPriceSchema = z.object({
+  entryKey: z.string().min(1).max(255),
+  customPriceUsd: z.number().min(0).nullable(),
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // GET /wishlist
@@ -113,6 +118,30 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ entry: result.rows[0] });
   } catch (err) {
     console.error('Update wishlist error:', err);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// PATCH /wishlist/price — set custom_price_usd for a wishlist entry
+router.patch('/price', async (req: Request, res: Response) => {
+  const parsed = CustomPriceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { entryKey, customPriceUsd } = parsed.data;
+
+  try {
+    await pool.query(
+      `UPDATE wishlist_entries
+       SET custom_price_usd = $1
+       WHERE user_id = $2 AND entry_key = $3`,
+      [customPriceUsd, req.user!.userId, entryKey],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Set wishlist custom price error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });

@@ -146,3 +146,57 @@
     padding-left: calc(56px + 0.6rem);
   }
 }
+
+/* ── Custom price UI (entry modal) ── */
+.entry-modal__custom-price-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.entry-modal__custom-price-sym {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.entry-modal__custom-price-input {
+  width: 100px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  background: var(--input-bg, var(--bg));
+  border: 1px solid var(--holo-edge);
+  color: var(--text);
+  border-radius: 3px;
+}
+
+.entry-modal__custom-price-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--accent) 20%, transparent);
+}
+
+.entry-modal__custom-price-save {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.entry-modal__custom-price-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+.entry-modal__custom-price-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-modal__custom-price-link {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  opacity: 0.8;
+}

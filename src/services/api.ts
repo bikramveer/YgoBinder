@@ -92,6 +92,7 @@ interface BackendCollectionRow {
   rarity: string;
   condition: Condition;
   quantity: number;
+  custom_price_usd: string | null;
   date_added: string;
 }
 
@@ -106,6 +107,7 @@ interface BackendWishlistRow {
   rarity: string;
   condition: Condition;
   quantity: number;
+  custom_price_usd: string | null;
   date_added: string;
 }
 
@@ -128,6 +130,7 @@ function groupCollectionRows(rows: BackendCollectionRow[]): CollectionEntry[] {
         setCode: row.set_code,
         rarity: row.rarity,
         copies: [{ condition: row.condition, quantity: row.quantity }],
+        customPriceUsd: row.custom_price_usd != null ? parseFloat(row.custom_price_usd) : undefined,
         dateAdded: row.date_added,
       });
     }
@@ -154,6 +157,7 @@ function rowToWishlist(row: BackendWishlistRow): WishlistEntry {
     rarity: row.rarity,
     minCondition: row.condition,
     desiredQuantity: row.quantity,
+    customPriceUsd: row.custom_price_usd != null ? parseFloat(row.custom_price_usd) : undefined,
     dateAdded: row.date_added,
   };
 }
@@ -274,6 +278,13 @@ export const collectionApi = {
   async removeAllCopies(entryId: string, conditions: Condition[]): Promise<void> {
     await Promise.all(conditions.map((c) => this.removeCopy(entryId, c)));
   },
+
+  async setCustomPrice(entryKey: string, customPriceUsd: number | null): Promise<void> {
+    await apiFetch('/collection/price', {
+      method: 'PATCH',
+      body: JSON.stringify({ entryKey, customPriceUsd }),
+    });
+  },
 };
 
 // ── Wishlist API ──────────────────────────────────────────────────────────────
@@ -320,6 +331,13 @@ export const wishlistApi = {
     if (!backendId) return;
     const res = await apiFetch(`/wishlist/${backendId}`, { method: 'DELETE' });
     if (res.ok) wishlistCache.delete(entryId);
+  },
+
+  async setCustomPrice(entryKey: string, customPriceUsd: number | null): Promise<void> {
+    await apiFetch('/wishlist/price', {
+      method: 'PATCH',
+      body: JSON.stringify({ entryKey, customPriceUsd }),
+    });
   },
 
   async acquire(

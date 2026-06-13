@@ -8,6 +8,7 @@ import { pricesApi } from '../services/api';
 import { getPriceFromCache } from '../utils/priceCache';
 import { HoloRing } from '../components/progress/HoloRing';
 import { ProgressBar } from '../components/progress/ProgressBar';
+import { EstValueTooltip } from '../components/EstValueTooltip/EstValueTooltip';
 import './DashboardPage.css';
 
 // const RING_R = 20;
@@ -81,15 +82,24 @@ export function DashboardPage() {
     [state.collection],
   );
 
-  const estValue = useMemo(() => {
-    let total = 0;
+  const estValueBreakdown = useMemo(() => {
+    let marketTotal = 0;
+    let manualTotal = 0;
+    let manualCount = 0;
+    let unpricedCount = 0;
     for (const entry of state.collection) {
-      const price = priceMap.get(entry.id);
-      if (!price) continue;
       const qty = entry.copies.reduce((s, c) => s + c.quantity, 0);
-      total += price * qty;
+      const marketPrice = priceMap.get(entry.id);
+      if (marketPrice != null) {
+        marketTotal += marketPrice * qty;
+      } else if (entry.customPriceUsd != null) {
+        manualTotal += entry.customPriceUsd * qty;
+        manualCount++;
+      } else {
+        unpricedCount++;
+      }
     }
-    return total;
+    return { marketTotal, manualTotal, manualCount, unpricedCount, total: marketTotal + manualTotal };
   }, [state.collection, priceMap]);
 
   const binderStats = useMemo(
@@ -101,15 +111,27 @@ export function DashboardPage() {
         const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
         const wishlistSlots = allSlots.filter((s) => s?.source === 'wishlist').length;
         const pctFull = totalSlots > 0 ? filledSlots / totalSlots : 0;
-        let binderValue = 0;
+        let binderMarket = 0;
+        let binderManual = 0;
+        let binderManualCount = 0;
+        let binderUnpriced = 0;
         for (const slot of allSlots) {
-          if (slot?.source === 'collection') {
-            binderValue += priceMap.get(slot.entryId) ?? 0;
+          if (slot?.source !== 'collection') continue;
+          const marketPrice = priceMap.get(slot.entryId);
+          const entry = state.collection.find((e) => e.id === slot.entryId);
+          if (marketPrice != null) {
+            binderMarket += marketPrice;
+          } else if (entry?.customPriceUsd != null) {
+            binderManual += entry.customPriceUsd;
+            binderManualCount++;
+          } else {
+            binderUnpriced++;
           }
         }
-        return { binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue };
+        const binderValue = binderMarket + binderManual;
+        return { binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue, binderMarket, binderManual, binderManualCount, binderUnpriced };
       }),
-    [state.binders, priceMap],
+    [state.binders, state.collection, priceMap],
   );
 
   const wishlistProgress = useMemo(() => {
@@ -163,9 +185,22 @@ export function DashboardPage() {
           <span className="dashboard__stat-label">On Wishlist</span>
         </div>
         <div className="dashboard__stat-tile">
-          <span className={`dashboard__stat-value${(!isLoggedIn || estValue === 0) ? ' dashboard__stat-value--dim' : ''}`}>
-            {!isLoggedIn ? '$-.--' : estValue > 0 ? formatValue(estValue, preferredCurrency, rates) : '$0.00'}
-          </span>
+          {isLoggedIn ? (
+            <EstValueTooltip
+              marketValue={estValueBreakdown.marketTotal}
+              manualValue={estValueBreakdown.manualTotal}
+              manualCount={estValueBreakdown.manualCount}
+              unpricedCount={estValueBreakdown.unpricedCount}
+              currency={preferredCurrency}
+              rates={rates}
+            >
+              <span className={`dashboard__stat-value${estValueBreakdown.total === 0 ? ' dashboard__stat-value--dim' : ''}`}>
+                {estValueBreakdown.total > 0 ? formatValue(estValueBreakdown.total, preferredCurrency, rates) : '$0.00'}
+              </span>
+            </EstValueTooltip>
+          ) : (
+            <span className="dashboard__stat-value dashboard__stat-value--dim">$-.--</span>
+          )}
           <span className="dashboard__stat-label">Est. Value</span>
           {!isLoggedIn && (
             <span className="dashboard__stat-note">Sign in to track value</span>
@@ -187,7 +222,7 @@ export function DashboardPage() {
           <h2 className="dashboard__section-title">Binders</h2>
           <div className="dashboard__binder-list">
             {/* {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, pctFull, binderValue }) => ( */}
-            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, binderValue }) => (
+            {binderStats.map(({ binder, totalSlots, filledSlots, ownedSlots, wishlistSlots, binderValue, binderMarket, binderManual, binderManualCount, binderUnpriced }) => (
               <Link key={binder.id} to="/binder" className="dashboard__binder-row">
                 <div className="dashboard__binder-row__info">
                   <span className="dashboard__binder-row__name">{binder.name}</span>
@@ -202,9 +237,18 @@ export function DashboardPage() {
                     </span>
                   )}
                   {isLoggedIn && binderValue > 0 && (
-                    <span className="dashboard__binder-row__value">
-                      {formatValue(binderValue, preferredCurrency, rates)}
-                    </span>
+                    <EstValueTooltip
+                      marketValue={binderMarket}
+                      manualValue={binderManual}
+                      manualCount={binderManualCount}
+                      unpricedCount={binderUnpriced}
+                      currency={preferredCurrency}
+                      rates={rates}
+                    >
+                      <span className="dashboard__binder-row__value">
+                        {formatValue(binderValue, preferredCurrency, rates)}
+                      </span>
+                    </EstValueTooltip>
                   )}
                 </div>
                 <HoloRing value={filledSlots} max={Math.max(totalSlots, 1)} size={68} sublabel={`${filledSlots}/${totalSlots}`} caption="SLOTS" />

@@ -29,6 +29,11 @@ const UpdateSchema = z.object({
   message: 'At least one field (condition or quantity) must be provided.',
 });
 
+const CustomPriceSchema = z.object({
+  entryKey: z.string().min(1).max(255),
+  customPriceUsd: z.number().min(0).nullable(),
+});
+
 // ── Routes ───────────────────────────────────────────────────────────────────
 
 // GET /collection
@@ -108,6 +113,30 @@ router.put('/:id', async (req: Request, res: Response) => {
     res.json({ entry: result.rows[0] });
   } catch (err) {
     console.error('Update collection error:', err);
+    res.status(500).json({ error: 'Something went wrong.' });
+  }
+});
+
+// PATCH /collection/price — set custom_price_usd for all condition rows of an entry
+router.patch('/price', async (req: Request, res: Response) => {
+  const parsed = CustomPriceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten().fieldErrors });
+    return;
+  }
+
+  const { entryKey, customPriceUsd } = parsed.data;
+
+  try {
+    await pool.query(
+      `UPDATE collection_entries
+       SET custom_price_usd = $1
+       WHERE user_id = $2 AND entry_key = $3`,
+      [customPriceUsd, req.user!.userId, entryKey],
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Set custom price error:', err);
     res.status(500).json({ error: 'Something went wrong.' });
   }
 });

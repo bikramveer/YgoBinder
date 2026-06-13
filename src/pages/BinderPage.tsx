@@ -11,6 +11,7 @@ import type { Binder, BinderPage, BinderSlot, CurrencyCode } from '../types';
 import { BINDER_MAX_PAGES, DEFAULT_BINDER_COLS, DEFAULT_BINDER_ROWS, SUPPORTED_CURRENCIES } from '../types';
 import type { ResolvedSlotData } from '../components/Binder/BinderSlot';
 import { HoloRing } from '../components/progress/HoloRing';
+import { EstValueTooltip } from '../components/EstValueTooltip/EstValueTooltip';
 import { pricesApi } from '../services/api';
 import { getPriceFromCache } from '../utils/priceCache';
 import './BinderPage.css';
@@ -125,26 +126,54 @@ export function BinderPage() {
   const filledSlots = allSlots.filter(Boolean).length;
   const ownedSlots = allSlots.filter((s) => s?.source === 'collection').length;
 
-  const binderValue = useMemo(() => {
-    if (!binder || priceMap.size === 0) return 0;
-    let total = 0;
+  const binderValueBreakdown = useMemo(() => {
+    let marketTotal = 0;
+    let manualTotal = 0;
+    let manualCount = 0;
+    let unpricedCount = 0;
     for (const slot of allSlots) {
-      if (slot?.source === 'collection') total += priceMap.get(slot.entryId) ?? 0;
+      if (slot?.source !== 'collection') continue;
+      const marketPrice = priceMap.get(slot.entryId);
+      const entry = state.collection.find((e) => e.id === slot.entryId);
+      if (marketPrice != null) {
+        marketTotal += marketPrice;
+      } else if (entry?.customPriceUsd != null) {
+        manualTotal += entry.customPriceUsd;
+        manualCount++;
+      } else {
+        unpricedCount++;
+      }
     }
-    return total;
-  }, [binder, allSlots, priceMap]);
+    return { marketTotal, manualTotal, manualCount, unpricedCount, total: marketTotal + manualTotal };
+  }, [binder, allSlots, priceMap, state.collection]);
+
+  const binderValue = binderValueBreakdown.total;
 
   const binderValues = useMemo(() => {
-    const m = new Map<string, number>();
+    const m = new Map<string, { total: number; market: number; manual: number; manualCount: number; unpriced: number }>();
     for (const b of state.binders) {
-      let total = 0;
+      let market = 0;
+      let manual = 0;
+      let manualCount = 0;
+      let unpriced = 0;
       for (const slot of b.pages.flatMap((p) => p.slots)) {
-        if (slot?.source === 'collection') total += priceMap.get(slot.entryId) ?? 0;
+        if (slot?.source !== 'collection') continue;
+        const marketPrice = priceMap.get(slot.entryId);
+        const entry = state.collection.find((e) => e.id === slot.entryId);
+        if (marketPrice != null) {
+          market += marketPrice;
+        } else if (entry?.customPriceUsd != null) {
+          manual += entry.customPriceUsd;
+          manualCount++;
+        } else {
+          unpriced++;
+        }
       }
-      if (total > 0) m.set(b.id, total);
+      const total = market + manual;
+      if (total > 0) m.set(b.id, { total, market, manual, manualCount, unpriced });
     }
     return m;
-  }, [state.binders, priceMap]);
+  }, [state.binders, state.collection, priceMap]);
 
   const formattedBinderValue = binderValue > 0 ? formatValue(binderValue, preferredCurrency, rates) : '';
 
@@ -495,9 +524,18 @@ export function BinderPage() {
                       <span className="binder-card__owned">{ownedSlots} owned</span>
                     )}
                     {isLoggedIn && binderValues.get(b.id) && (
-                      <span className="binder-card__value">
-                        {formatValue(binderValues.get(b.id)!, preferredCurrency, rates)}
-                      </span>
+                      <EstValueTooltip
+                        marketValue={binderValues.get(b.id)!.market}
+                        manualValue={binderValues.get(b.id)!.manual}
+                        manualCount={binderValues.get(b.id)!.manualCount}
+                        unpricedCount={binderValues.get(b.id)!.unpriced}
+                        currency={preferredCurrency}
+                        rates={rates}
+                      >
+                        <span className="binder-card__value">
+                          {formatValue(binderValues.get(b.id)!.total, preferredCurrency, rates)}
+                        </span>
+                      </EstValueTooltip>
                     )}
                   </div>
                 </button>
@@ -569,9 +607,18 @@ export function BinderPage() {
             <div className="binder-side-col binder-side-col--left">
               {isLoggedIn && formattedBinderValue && (
                 <div className="binder-hud-value">
-                  <span ref={valueRef} data-decode className="binder-hud-value__amount">
-                    {formattedBinderValue}
-                  </span>
+                  <EstValueTooltip
+                    marketValue={binderValueBreakdown.marketTotal}
+                    manualValue={binderValueBreakdown.manualTotal}
+                    manualCount={binderValueBreakdown.manualCount}
+                    unpricedCount={binderValueBreakdown.unpricedCount}
+                    currency={preferredCurrency}
+                    rates={rates}
+                  >
+                    <span ref={valueRef} data-decode className="binder-hud-value__amount">
+                      {formattedBinderValue}
+                    </span>
+                  </EstValueTooltip>
                   <span className="binder-hud-value__label">Est. Value</span>
                 </div>
               )}
